@@ -37,7 +37,8 @@ project "Client"
         "Network",
         "IO",
         "AssetsC3",
-        "World"
+        "World",
+        "ImGui"
     }
     
     filter "system:windows"

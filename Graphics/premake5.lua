@@ -18,7 +18,8 @@ project "Graphics"
         "../Platform/Include",
         "%{IncludeDirs.glm}",
         "%{IncludeDirs.DirectXTex}",
-        "%{IncludeDirs.spdlog}"
+        "%{IncludeDirs.spdlog}",
+        "%{IncludeDirs.stb}"
     }
     
     links {

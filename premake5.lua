@@ -44,6 +44,9 @@ workspace "YamenSolutions"
         include "Client"
         include "Tools"
     
+    group "ThirdParty"
+        include "ThirdParty"
+    
     -- Server Solution Projects
     group "YServer"
         include "YServer/ServerCore"

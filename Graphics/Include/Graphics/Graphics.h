@@ -7,6 +7,17 @@
 #include "Graphics/RHI/DepthStencilBuffer.h"
 #include "Graphics/RHI/Buffer.h"
 
+// Shader
+#include "Graphics/Shader/ShaderCompiler.h"
+#include "Graphics/Shader/Shader.h"
+
+// Texture
+#include "Graphics/Texture/Texture2D.h"
+#include "Graphics/Texture/TextureLoader.h"
+
+// Renderer
+#include "Graphics/Renderer/Camera2D.h"
+
 namespace Yamen::Graphics {
 
     /**

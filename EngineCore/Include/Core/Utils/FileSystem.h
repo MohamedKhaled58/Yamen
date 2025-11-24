@@ -156,23 +156,23 @@ namespace Yamen::Core {
         // ===== Path Utilities =====
         
         /**
-         * @brief Get file extension (including the dot)
-         * @param path File path
-         * @return Extension string (e.g., ".txt")
+         * @brief Get file extension (including dot)
+         * @param path Path to the file
+         * @return File extension (e.g., ".txt"), empty if no extension
          */
         static std::string GetExtension(const std::filesystem::path& path);
 
         /**
-         * @brief Get filename with extension
-         * @param path File path
-         * @return Filename string (e.g., "file.txt")
+         * @brief Get file name with extension
+         * @param path Path to the file
+         * @return File name with extension
          */
         static std::string GetFilename(const std::filesystem::path& path);
 
         /**
-         * @brief Get filename without extension
-         * @param path File path
-         * @return Filename without extension (e.g., "file")
+         * @brief Get file name without extension
+         * @param path Path to the file
+         * @return File name without extension
          */
         static std::string GetStem(const std::filesystem::path& path);
 
