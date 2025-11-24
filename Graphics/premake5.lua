@@ -17,7 +17,8 @@ project "Graphics"
         "../EngineCore/Include",
         "../Platform/Include",
         "%{IncludeDirs.glm}",
-        "%{IncludeDirs.DirectXTex}"
+        "%{IncludeDirs.DirectXTex}",
+        "%{IncludeDirs.spdlog}"
     }
     
     links {

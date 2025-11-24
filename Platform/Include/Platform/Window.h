@@ -67,6 +67,7 @@ public:
      * @brief Get native window handle
      */
     HWND GetNativeWindow() const noexcept { return m_Window; }
+    void* GetNativeHandle() const noexcept { return static_cast<void*>(m_Window); }
     
     /**
      * @brief Check if window should close

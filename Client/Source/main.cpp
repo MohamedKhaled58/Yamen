@@ -5,6 +5,7 @@
 #include "Platform/Events/InputEvents.h"
 #include "Platform/Events/InputDispatcher.h"
 #include "Platform/Layers/Layer.h"
+#include "Graphics/Graphics.h"
 
 using namespace Yamen;
 
@@ -61,6 +62,20 @@ public:
         m_Window = std::make_unique<Platform::Window>(props);
         m_Window->SetEventCallback([this](Platform::Event& e) { OnEvent(e); });
 
+        // Initialize graphics
+        m_GraphicsDevice = std::make_unique<Graphics::GraphicsDevice>();
+        if (!m_GraphicsDevice->Initialize(true)) {
+            YAMEN_CLIENT_CRITICAL("Failed to initialize graphics device");
+            return;
+        }
+
+        // Create swap chain
+        m_SwapChain = std::make_unique<Graphics::SwapChain>(*m_GraphicsDevice);
+        if (!m_SwapChain->Create(m_Window->GetNativeHandle(), props.width, props.height, props.vsync)) {
+            YAMEN_CLIENT_CRITICAL("Failed to create swap chain");
+            return;
+        }
+
         // Create layer stack
         m_LayerStack = std::make_unique<Platform::LayerStack>();
         m_LayerStack->PushLayer(std::make_unique<GameLayer>());
@@ -70,6 +85,10 @@ public:
 
     ~Application() {
         YAMEN_CLIENT_INFO("Application shutting down");
+        
+        // Shutdown graphics
+        m_SwapChain.reset();
+        m_GraphicsDevice->Shutdown();
     }
 
     void Run() {
@@ -90,8 +109,18 @@ public:
             // Update layers
             m_LayerStack->OnUpdate(deltaTime);
 
+            // === RENDERING ===
+            // Clear back buffer to cornflower blue
+            auto* backBuffer = m_SwapChain->GetBackBuffer();
+            if (backBuffer) {
+                backBuffer->Clear(0.39f, 0.58f, 0.93f, 1.0f); // Cornflower blue
+            }
+
             // Render layers
             m_LayerStack->OnRender();
+
+            // Present
+            m_SwapChain->Present();
 
             // Log FPS every second
             static float fpsTimer = 0.0f;
@@ -117,6 +146,8 @@ private:
 
     std::unique_ptr<Platform::Window> m_Window;
     std::unique_ptr<Platform::LayerStack> m_LayerStack;
+    std::unique_ptr<Graphics::GraphicsDevice> m_GraphicsDevice;
+    std::unique_ptr<Graphics::SwapChain> m_SwapChain;
     Platform::EventDispatcher m_EventDispatcher;
     Platform::InputDispatcher m_InputDispatcher;
 };
