@@ -1,0 +1,34 @@
+[submodule "ThirdParty/entt"]
+	path = ThirdParty/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "ThirdParty/asio"]
+	path = ThirdParty/asio
+	url = https://github.com/chriskohlhoff/asio.git
+[submodule "ThirdParty/spdlog"]
+	path = ThirdParty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "ThirdParty/fmt"]
+	path = ThirdParty/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "ThirdParty/imgui"]
+	path = ThirdParty/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking
+[submodule "ThirdParty/glm"]
+	path = ThirdParty/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "ThirdParty/DirectXTex"]
+	path = ThirdParty/DirectXTex
+	url = https://github.com/microsoft/DirectXTex.git
+[submodule "ThirdParty/lz4"]
+	path = ThirdParty/lz4
+	url = https://github.com/lz4/lz4.git
+[submodule "ThirdParty/xxHash"]
+	path = ThirdParty/xxHash
+	url = https://github.com/Cyan4973/xxHash.git
+[submodule "ThirdParty/protobuf"]
+	path = ThirdParty/protobuf
+	url = https://github.com/protocolbuffers/protobuf.git
+[submodule "ThirdParty/stb"]
+	path = ThirdParty/stb
+	url = https://github.com/nothings/stb.git
