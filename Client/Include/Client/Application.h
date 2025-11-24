@@ -10,6 +10,8 @@
 
 namespace Yamen::Client {
 
+    class ImGuiLayer;
+
     /**
      * @brief Main application class
      * 
@@ -57,6 +59,7 @@ namespace Yamen::Client {
         std::unique_ptr<Graphics::GraphicsDevice> m_GraphicsDevice;
         std::unique_ptr<Graphics::SwapChain> m_SwapChain;
         std::unique_ptr<Platform::LayerStack> m_LayerStack;
+        ImGuiLayer* m_ImGuiLayer = nullptr;
         Platform::EventDispatcher m_EventDispatcher;
         Platform::InputDispatcher m_InputDispatcher;
 

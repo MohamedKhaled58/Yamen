@@ -1,5 +1,6 @@
 #include "Client/Application.h"
 #include "Client/GameLayer.h"
+#include "Client/ImGuiLayer.h"
 #include "Core/Logging/Logger.h"
 #include "Graphics/RHI/RenderTarget.h"
 #include "Platform/Timer.h"
@@ -45,6 +46,10 @@ namespace Yamen::Client {
         
         // Add game layer
         m_LayerStack->PushLayer(std::make_unique<GameLayer>());
+        
+        // Add ImGui layer as overlay (renders on top)
+        m_ImGuiLayer = new ImGuiLayer();
+        m_LayerStack->PushOverlay(std::unique_ptr<Platform::Layer>(m_ImGuiLayer));
 
         YAMEN_CLIENT_INFO("Application initialized");
     }
@@ -86,6 +91,11 @@ namespace Yamen::Client {
 
             // Render layers
             m_LayerStack->OnRender();
+
+            // ImGui rendering
+            m_ImGuiLayer->Begin();
+            m_LayerStack->OnImGuiRender();
+            m_ImGuiLayer->End();
 
             // Present
             m_SwapChain->Present();
