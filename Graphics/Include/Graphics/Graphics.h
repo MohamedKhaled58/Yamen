@@ -6,6 +6,7 @@
 #include "Graphics/RHI/RenderTarget.h"
 #include "Graphics/RHI/DepthStencilBuffer.h"
 #include "Graphics/RHI/Buffer.h"
+#include "Graphics/RHI/Sampler.h"
 
 // Shader
 #include "Graphics/Shader/ShaderCompiler.h"
@@ -17,6 +18,13 @@
 
 // Renderer
 #include "Graphics/Renderer/Camera2D.h"
+#include "Graphics/Renderer/Camera3D.h"
+
+// Mesh
+#include "Graphics/Mesh/Vertex.h"
+
+// Lighting
+#include "Graphics/Lighting/Light.h"
 
 namespace Yamen::Graphics {
 
