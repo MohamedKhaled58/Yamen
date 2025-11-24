@@ -1,4 +1,4 @@
-#include "Client/Application.h"
+﻿#include "Client/Application.h"
 #include "Client/GameLayer.h"
 #include "Client/ImGuiLayer.h"
 #include "Core/Logging/Logger.h"
@@ -14,7 +14,6 @@ namespace Yamen::Client {
     {
         // Set singleton
         s_Instance = this;
-
         YAMEN_CLIENT_INFO("=== Yamen Engine Starting ===");
 
         // Create window
@@ -43,10 +42,10 @@ namespace Yamen::Client {
 
         // Create layer stack
         m_LayerStack = std::make_unique<Platform::LayerStack>();
-        
+
         // Add game layer
         m_LayerStack->PushLayer(std::make_unique<GameLayer>());
-        
+
         // Add ImGui layer as overlay (renders on top)
         m_ImGuiLayer = new ImGuiLayer();
         m_LayerStack->PushOverlay(std::unique_ptr<Platform::Layer>(m_ImGuiLayer));
@@ -83,11 +82,19 @@ namespace Yamen::Client {
             m_LayerStack->OnUpdate(deltaTime);
 
             // === RENDERING ===
-            // Clear back buffer
+
+            // Get back buffer
             auto* backBuffer = m_SwapChain->GetBackBuffer();
-            if (backBuffer) {
-                backBuffer->Clear(0.1f, 0.1f, 0.1f, 1.0f); // Dark gray
+            if (!backBuffer) {
+                continue;
             }
+
+            // ✅ FIX: Set render target BEFORE clearing
+            auto* rtv = backBuffer->GetRTV();
+            m_GraphicsDevice->GetContext()->OMSetRenderTargets(1, &rtv, nullptr);
+
+            // Clear back buffer
+            backBuffer->Clear(0.1f, 0.1f, 0.1f, 1.0f);
 
             // Render layers
             m_LayerStack->OnRender();

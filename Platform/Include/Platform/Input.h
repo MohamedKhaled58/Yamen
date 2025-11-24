@@ -105,6 +105,8 @@ namespace Yamen::Platform {
          * @param y Output parameter for Y position
          */
         static void GetMousePosition(float& x, float& y);
+        static void SetMousePosition(float x, float y);
+
 
         /**
          * @brief Get mouse X position

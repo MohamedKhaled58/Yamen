@@ -4,6 +4,15 @@
 #include "Core/Logging/Logger.h"
 #include <windowsx.h>
 
+#include <imgui.h>
+#include <backends/imgui_impl_win32.h>
+#include <backends/imgui_impl_dx11.h>
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+
+
 namespace Yamen::Platform {
 
     static uint8_t s_WindowCount = 0;
@@ -201,7 +210,14 @@ namespace Yamen::Platform {
 
     LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
+
+
         WindowData* data = reinterpret_cast<WindowData*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+		// Pass events to ImGui first
+        if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) {
+            return true;
+		}
 
         switch (msg) {
         case WM_CLOSE: {
@@ -287,9 +303,19 @@ namespace Yamen::Platform {
                         if (data && data->eventCallback) {
                             float x = static_cast<float>(GET_X_LPARAM(lParam));
                             float y = static_cast<float>(GET_Y_LPARAM(lParam));
+        
+                            // ✅ Update Input system
+                            Input::SetMousePosition(x, y);
+        
                             MouseMovedEvent event(x, y);
                             data->eventCallback(event);
                         }
+                        return 0;
+                    }
+
+                    case WM_MOUSELEAVE: {
+                        // ✅ Reset when mouse leaves window
+                        Input::SetMousePosition(0.0f, 0.0f);
                         return 0;
                     }
 

@@ -65,10 +65,14 @@ namespace Yamen::Client {
     void GameLayer::OnRender() {
         // TODO: Implement 2D rendering with SpriteBatch
         // For now, just clear screen (done in Application)
+
+
     }
 
     void GameLayer::OnEvent(Platform::Event& event) {
         // Handle events
+
+
     }
 
     void GameLayer::OnImGuiRender() {

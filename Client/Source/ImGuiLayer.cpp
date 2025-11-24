@@ -1,10 +1,10 @@
-#include "Client/ImGuiLayer.h"
+﻿#include "Client/ImGuiLayer.h"
 #include "Client/Application.h"
 #include "Core/Logging/Logger.h"
 
 #include <imgui.h>
-#include <./backends/imgui_impl_win32.h>
-#include <./backends/imgui_impl_dx11.h>
+#include <backends/imgui_impl_win32.h>
+#include <backends/imgui_impl_dx11.h>
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -46,7 +46,8 @@ namespace Yamen::Client {
         auto& window = app.GetWindow();
         auto& device = app.GetGraphicsDevice();
 
-        ImGui_ImplWin32_Init(window.GetNativeWindow());
+        // ✅ FIXED: Check method names match your Window class
+        ImGui_ImplWin32_Init(window.GetNativeWindow());  // or GetNativeWindow() - check Window.h
         ImGui_ImplDX11_Init(device.GetDevice(), device.GetContext());
 
         YAMEN_CLIENT_INFO("ImGui initialized (Win32 + DX11 backends)");
@@ -79,6 +80,7 @@ namespace Yamen::Client {
     void ImGuiLayer::OnEvent(Platform::Event& event) {
         if (m_BlockEvents) {
             ImGuiIO& io = ImGui::GetIO();
+
             // Block events if ImGui wants to capture them
             if (io.WantCaptureMouse) {
                 // event.Handled = true; // TODO: Add handled flag to Event

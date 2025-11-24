@@ -17,7 +17,8 @@ project "Platform"
         "../EngineCore/Include",
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.fmt}",
-        "%{IncludeDirs.glm}"
+        "%{IncludeDirs.glm}",
+        "%{IncludeDirs.imgui}"
     }
     
     links {
@@ -34,7 +35,8 @@ project "Platform"
         links {
             "user32",
             "gdi32",
-            "winmm"
+            "winmm",
+            "imgui"
         }
     
     filter "configurations:Debug"
