@@ -56,6 +56,12 @@ namespace Yamen::Graphics {
         void Update(const void* data, uint32_t size);
 
         /**
+         * @brief Bind buffer to pipeline
+         * This is a convenience method that calls the appropriate bind function
+         */
+        void Bind();
+
+        /**
          * @brief Get the D3D11 buffer
          */
         ID3D11Buffer* GetBuffer() const { return m_Buffer.Get(); }
@@ -68,6 +74,18 @@ namespace Yamen::Graphics {
         uint32_t GetSize() const { return m_Size; }
         uint32_t GetStride() const { return m_Stride; }
         uint32_t GetCount() const { return m_Stride > 0 ? m_Size / m_Stride : 0; }
+
+        /**
+         * @brief Bind constant buffer to vertex shader
+         * @param slot Constant buffer slot (0-13)
+         */
+        void BindToVertexShader(uint32_t slot = 0);
+
+        /**
+         * @brief Bind constant buffer to pixel shader
+         * @param slot Constant buffer slot (0-13)
+         */
+        void BindToPixelShader(uint32_t slot = 0);
 
     private:
         GraphicsDevice& m_Device;

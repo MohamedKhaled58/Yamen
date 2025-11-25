@@ -16,14 +16,13 @@ namespace Yamen::Graphics {
         m_Texture.Reset();
     }
 
-    bool DepthStencilBuffer::Create(uint32_t width, uint32_t height, bool useStencil) {
+    bool DepthStencilBuffer::Create(uint32_t width, uint32_t height, DXGI_FORMAT format) {
         m_Width = width;
         m_Height = height;
-        m_HasStencil = useStencil;
-
-        // Choose format based on stencil requirement
-        DXGI_FORMAT textureFormat = useStencil ? DXGI_FORMAT_D24_UNORM_S8_UINT : DXGI_FORMAT_D32_FLOAT;
-        DXGI_FORMAT dsvFormat = textureFormat;
+        
+        // Determine if format has stencil component
+        m_HasStencil = (format == DXGI_FORMAT_D24_UNORM_S8_UINT || 
+                        format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT);
 
         // Create depth/stencil texture
         D3D11_TEXTURE2D_DESC texDesc = {};
@@ -31,7 +30,7 @@ namespace Yamen::Graphics {
         texDesc.Height = height;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
-        texDesc.Format = textureFormat;
+        texDesc.Format = format;
         texDesc.SampleDesc.Count = 1;
         texDesc.SampleDesc.Quality = 0;
         texDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -47,7 +46,7 @@ namespace Yamen::Graphics {
 
         // Create depth/stencil view
         D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-        dsvDesc.Format = dsvFormat;
+        dsvDesc.Format = format;
         dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
         dsvDesc.Texture2D.MipSlice = 0;
 
@@ -57,8 +56,8 @@ namespace Yamen::Graphics {
             return false;
         }
 
-        YAMEN_CORE_TRACE("Created depth/stencil buffer ({}x{}, stencil: {})", 
-            width, height, useStencil ? "Yes" : "No");
+        YAMEN_CORE_TRACE("Created depth/stencil buffer ({}x{}, format: {}, stencil: {})", 
+            width, height, static_cast<int>(format), m_HasStencil ? "Yes" : "No");
         return true;
     }
 

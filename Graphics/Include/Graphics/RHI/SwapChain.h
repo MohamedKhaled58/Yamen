@@ -66,13 +66,20 @@ namespace Yamen::Graphics {
          */
         IDXGISwapChain1* GetSwapChain() const { return m_SwapChain.Get(); }
 
+        /**
+         * @brief Get the depth/stencil buffer
+         */
+        class DepthStencilBuffer* GetDepthBuffer() const { return m_DepthBuffer.get(); }
+
     private:
         void CreateBackBufferRenderTarget();
+        void CreateDepthStencilBuffer();
         void ReleaseBackBuffer();
 
         GraphicsDevice& m_Device;
         ComPtr<IDXGISwapChain1> m_SwapChain;
         std::unique_ptr<RenderTarget> m_BackBuffer;
+        std::unique_ptr<class DepthStencilBuffer> m_DepthBuffer;
         uint32_t m_Width;
         uint32_t m_Height;
         bool m_VSync;

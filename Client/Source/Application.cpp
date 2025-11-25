@@ -3,7 +3,9 @@
 #include "Client/ImGuiLayer.h"
 #include "Core/Logging/Logger.h"
 #include "Graphics/RHI/RenderTarget.h"
+#include "Graphics/RHI/DepthStencilBuffer.h"
 #include "Platform/Timer.h"
+#include "Platform/Events/ApplicationEvents.h"
 
 namespace Yamen::Client {
 
@@ -83,18 +85,33 @@ namespace Yamen::Client {
 
             // === RENDERING ===
 
-            // Get back buffer
+            // Get back buffer and depth buffer
             auto* backBuffer = m_SwapChain->GetBackBuffer();
+            auto* depthBuffer = m_SwapChain->GetDepthBuffer();
             if (!backBuffer) {
                 continue;
             }
 
-            // ✅ FIX: Set render target BEFORE clearing
+            // Set render target and depth buffer
             auto* rtv = backBuffer->GetRTV();
-            m_GraphicsDevice->GetContext()->OMSetRenderTargets(1, &rtv, nullptr);
+            auto* dsv = depthBuffer ? depthBuffer->GetDSV() : nullptr;
+            m_GraphicsDevice->GetContext()->OMSetRenderTargets(1, &rtv, dsv);
 
-            // Clear back buffer
+            // Set viewport
+            D3D11_VIEWPORT viewport = {};
+            viewport.TopLeftX = 0.0f;
+            viewport.TopLeftY = 0.0f;
+            viewport.Width = static_cast<float>(m_Window->GetWidth());
+            viewport.Height = static_cast<float>(m_Window->GetHeight());
+            viewport.MinDepth = 0.0f;
+            viewport.MaxDepth = 1.0f;
+            m_GraphicsDevice->GetContext()->RSSetViewports(1, &viewport);
+
+            // Clear back buffer and depth buffer
             backBuffer->Clear(0.1f, 0.1f, 0.1f, 1.0f);
+            if (depthBuffer) {
+                depthBuffer->Clear();
+            }
 
             // Render layers
             m_LayerStack->OnRender();
@@ -121,6 +138,17 @@ namespace Yamen::Client {
     }
 
     void Application::OnEvent(Platform::Event& event) {
+        // Handle window resize using dynamic_cast
+        if (auto* resizeEvent = dynamic_cast<Platform::WindowResizeEvent*>(&event)) {
+            uint32_t width = resizeEvent->GetWidth();
+            uint32_t height = resizeEvent->GetHeight();
+            
+            if (width > 0 && height > 0) {
+                // Recreate swap chain with new dimensions
+                m_SwapChain->Resize(width, height);
+            }
+        }
+
         // Dispatch to global event dispatcher first
         m_EventDispatcher.Dispatch(event);
 

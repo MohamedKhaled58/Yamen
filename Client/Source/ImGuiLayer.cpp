@@ -70,11 +70,7 @@ namespace Yamen::Client {
     }
 
     void ImGuiLayer::OnImGuiRender() {
-        // Demo window for testing
-        static bool showDemo = true;
-        if (showDemo) {
-            ImGui::ShowDemoWindow(&showDemo);
-        }
+
     }
 
     void ImGuiLayer::OnEvent(Platform::Event& event) {

@@ -1,5 +1,6 @@
 #include "Graphics/RHI/SwapChain.h"
 #include "Graphics/RHI/RenderTarget.h"
+#include "Graphics/RHI/DepthStencilBuffer.h"
 #include "Core/Logging/Logger.h"
 
 namespace Yamen::Graphics {
@@ -101,6 +102,9 @@ namespace Yamen::Graphics {
         // Create back buffer render target
         CreateBackBufferRenderTarget();
 
+        // Create depth/stencil buffer
+        CreateDepthStencilBuffer();
+
         YAMEN_CORE_INFO("Swap chain created ({}x{}, VSync: {})", width, height, vsync ? "On" : "Off");
         return true;
     }
@@ -132,6 +136,9 @@ namespace Yamen::Graphics {
 
         // Recreate back buffer render target
         CreateBackBufferRenderTarget();
+
+        // Recreate depth/stencil buffer
+        CreateDepthStencilBuffer();
 
         YAMEN_CORE_INFO("Swap chain resized to {}x{}", width, height);
     }
@@ -165,6 +172,15 @@ namespace Yamen::Graphics {
 
     void SwapChain::ReleaseBackBuffer() {
         m_BackBuffer.reset();
+        m_DepthBuffer.reset();
+    }
+
+    void SwapChain::CreateDepthStencilBuffer() {
+        m_DepthBuffer = std::make_unique<DepthStencilBuffer>(m_Device);
+        if (!m_DepthBuffer->Create(m_Width, m_Height, DXGI_FORMAT_D24_UNORM_S8_UINT)) {
+            YAMEN_CORE_ERROR("Failed to create depth/stencil buffer");
+            m_DepthBuffer.reset();
+        }
     }
 
 } // namespace Yamen::Graphics

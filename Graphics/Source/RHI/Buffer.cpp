@@ -1,3 +1,4 @@
+
 #include "Graphics/RHI/Buffer.h"
 #include "Core/Logging/Logger.h"
 
@@ -109,15 +110,56 @@ namespace Yamen::Graphics {
         );
 
         if (FAILED(hr)) {
-            YAMEN_CORE_ERROR("Failed to map buffer: 0x{:08X}", static_cast<uint32_t>(hr));
+            YAMEN_CORE_ERROR("Failed to map buffer for update");
             return;
         }
 
         // Copy data
         memcpy(mappedResource.pData, data, size);
 
-        // Unmap buffer
+        // Unmap
         m_Device.GetContext()->Unmap(m_Buffer.Get(), 0);
+    }
+
+    void Buffer::Bind() {
+        auto context = m_Device.GetContext();
+
+        switch (m_Type) {
+            case BufferType::Vertex: {
+                UINT offset = 0;
+                context->IASetVertexBuffers(0, 1, m_Buffer.GetAddressOf(), &m_Stride, &offset);
+                break;
+            }
+            case BufferType::Index: {
+                DXGI_FORMAT format = (m_Stride == 4) ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
+                context->IASetIndexBuffer(m_Buffer.Get(), format, 0);
+                break;
+            }
+            case BufferType::Constant: {
+                YAMEN_CORE_WARN("Use SetConstantBuffer to bind constant buffers, not Bind()");
+                break;
+            }
+        }
+    }
+
+    void Buffer::BindToVertexShader(uint32_t slot) {
+        if (m_Type != BufferType::Constant) {
+            YAMEN_CORE_WARN("BindToVertexShader called on non-constant buffer");
+            return;
+        }
+
+        auto context = m_Device.GetContext();
+        context->VSSetConstantBuffers(slot, 1, m_Buffer.GetAddressOf());
+    }
+
+    void Buffer::BindToPixelShader(uint32_t slot) {
+        if (m_Type != BufferType::Constant) {
+            YAMEN_CORE_WARN("BindToPixelShader called on non-constant buffer");
+            return;
+        }
+
+        auto context = m_Device.GetContext();
+        context->PSSetConstantBuffers(slot, 1, m_Buffer.GetAddressOf());
     }
 
 } // namespace Yamen::Graphics

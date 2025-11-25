@@ -23,10 +23,10 @@ namespace Yamen::Graphics {
          * @brief Create depth/stencil buffer
          * @param width Buffer width
          * @param height Buffer height
-         * @param useStencil Enable stencil buffer (8-bit)
+         * @param format Depth/stencil format (e.g. DXGI_FORMAT_D24_UNORM_S8_UINT)
          * @return True if creation succeeded
          */
-        bool Create(uint32_t width, uint32_t height, bool useStencil = true);
+        bool Create(uint32_t width, uint32_t height, DXGI_FORMAT format = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
         /**
          * @brief Clear depth buffer

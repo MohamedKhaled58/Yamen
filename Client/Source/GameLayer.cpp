@@ -25,10 +25,22 @@ namespace Yamen::Client {
         // Create test texture (white square)
         auto& device = Application::Get().GetGraphicsDevice();
         m_TestTexture = Graphics::TextureLoader::CreateSolidColor(device, 64, 64, 255, 255, 255, 255);
+
+#if ENABLE_DEMO_SCENE
+        // === DEMO SCENE INITIALIZATION ===
+        m_DemoScene = std::make_unique<DemoScene>(device);
+        if (!m_DemoScene->Initialize()) {
+            YAMEN_CLIENT_ERROR("Failed to initialize demo scene");
+        }
+#endif
     }
 
     void GameLayer::OnDetach() {
         YAMEN_CLIENT_INFO("GameLayer detached");
+
+#if ENABLE_DEMO_SCENE
+        m_DemoScene.reset();
+#endif
     }
 
     void GameLayer::OnUpdate(float deltaTime) {
@@ -60,46 +72,72 @@ namespace Yamen::Client {
         if (Platform::Input::IsKeyPressed(Platform::KeyCode::E)) {
             m_Camera->SetZoom(m_Camera->GetZoom() + deltaTime);
         }
+
+#if ENABLE_DEMO_SCENE
+        // === UPDATE DEMO SCENE ===
+        m_DemoScene->Update(deltaTime);
+#endif
     }
 
     void GameLayer::OnRender() {
-        // TODO: Implement 2D rendering with SpriteBatch
-        // For now, just clear screen (done in Application)
-
-
+#if ENABLE_DEMO_SCENE
+        // === RENDER DEMO SCENE ===
+        m_DemoScene->Render();
+#else
+        // Production rendering code goes here
+        // TODO: Implement game rendering
+#endif
     }
 
     void GameLayer::OnEvent(Platform::Event& event) {
         // Handle events
-
-
     }
 
     void GameLayer::OnImGuiRender() {
-        // Debug UI
-        ImGui::Begin("Game Debug");
+#if ENABLE_DEMO_SCENE
+        // === DEMO SCENE UI ===
+         m_DemoScene->RenderImGui(); // Disable internal demo UI to avoid duplication
+        
+        if (m_DemoScene) {
+            auto* camera = m_DemoScene->GetCamera3D();
+            if (camera) {
+                ImGui::Begin("Scene Controls");
+                
+                ImGui::Text("Camera 3D");
+                ImGui::Separator();
+                
+                // Position
+                glm::vec3 pos = camera->GetPosition();
+                if (ImGui::DragFloat3("Position", &pos.x, 0.1f)) {
+                    camera->SetPosition(pos);
+                }
+                
+                // Rotation
+                glm::vec3 rot = camera->GetRotation();
+                // Convert to degrees for display
+                glm::vec3 rotDeg = glm::degrees(rot);
+                if (ImGui::DragFloat3("Rotation", &rotDeg.x, 1.0f)) {
+                    camera->SetRotation(glm::radians(rotDeg));
+                }
 
-        ImGui::Text("Camera");
-        ImGui::Separator();
+                // FOV
+                float fov = camera->GetFOV();
+                if (ImGui::SliderFloat("FOV", &fov, 30.0f, 120.0f)) {
+                    camera->SetFOV(fov);
+                }
+                
+                ImGui::Separator();
+                
+                if (ImGui::Button("Reset Camera")) {
+                    camera->SetPosition(glm::vec3(0.0f, 5.0f, -15.0f));
+                    camera->SetRotation(glm::vec3(glm::radians(-15.0f), glm::radians(90.0f), 0.0f));
+                    camera->SetFOV(60.0f);
+                }
 
-        glm::vec2 camPos = m_Camera->GetPosition();
-        if (ImGui::DragFloat2("Position", &camPos.x, 1.0f)) {
-            m_Camera->SetPosition(camPos);
+                ImGui::End();
+            }
         }
-
-        float zoom = m_Camera->GetZoom();
-        if (ImGui::SliderFloat("Zoom", &zoom, 0.1f, 5.0f)) {
-            m_Camera->SetZoom(zoom);
-        }
-
-        ImGui::SliderFloat("Camera Speed", &m_CameraSpeed, 100.0f, 1000.0f);
-
-        ImGui::Separator();
-        ImGui::Text("Controls:");
-        ImGui::BulletText("WASD - Move camera");
-        ImGui::BulletText("Q/E - Zoom in/out");
-
-        ImGui::End();
+#endif
     }
 
 } // namespace Yamen::Client

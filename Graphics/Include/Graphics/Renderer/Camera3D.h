@@ -1,5 +1,9 @@
 #pragma once
 
+#include "Graphics/RHI/GraphicsDevice.h"
+
+// Force GLM to use 0 to 1 depth range (DirectX) instead of -1 to 1 (OpenGL)
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
