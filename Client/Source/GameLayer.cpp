@@ -3,6 +3,7 @@
 #include "Core/Logging/Logger.h"
 #include "Graphics/Texture/TextureLoader.h"
 #include "Platform/Input.h"
+#include "Platform/Events/ApplicationEvents.h"
 #include <imgui.h>
 
 namespace Yamen::Client {
@@ -90,7 +91,29 @@ namespace Yamen::Client {
     }
 
     void GameLayer::OnEvent(Platform::Event& event) {
-        // Handle events
+        if (auto* resizeEvent = dynamic_cast<Platform::WindowResizeEvent*>(&event)) {
+            uint32_t width = resizeEvent->GetWidth();
+            uint32_t height = resizeEvent->GetHeight();
+            
+            if (width > 0 && height > 0) {
+                float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+                
+                // Update 2D camera
+                if (m_Camera) {
+                    m_Camera->SetViewportSize(static_cast<float>(width), static_cast<float>(height));
+                }
+
+#if ENABLE_DEMO_SCENE
+                // Update 3D camera in demo scene
+                if (m_DemoScene) {
+                    auto* camera3D = m_DemoScene->GetCamera3D();
+                    if (camera3D) {
+                        camera3D->SetAspectRatio(aspectRatio);
+                    }
+                }
+#endif
+            }
+        }
     }
 
     void GameLayer::OnImGuiRender() {

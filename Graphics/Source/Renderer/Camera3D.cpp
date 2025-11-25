@@ -55,7 +55,7 @@ namespace Yamen::Graphics {
     }
 
     void Camera3D::UpdateVectors() {
-        // Calculate forward vector from Euler angles
+        // Calculate forward vector from Euler angles (Pitch and Yaw only, ignore Roll for FPS camera)
         glm::vec3 forward;
         forward.x = cos(m_Rotation.y) * cos(m_Rotation.x);
         forward.y = sin(m_Rotation.x);

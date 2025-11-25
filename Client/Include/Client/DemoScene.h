@@ -67,7 +67,7 @@ namespace Yamen {
         float m_Rotation;
         bool m_ShowWireframe;
         bool m_Show2D;
-        bool m_Show3D;
+        bool m_Show3D = true;
         glm::vec3 m_LightDirection;
         glm::vec3 m_LightColor;
     };

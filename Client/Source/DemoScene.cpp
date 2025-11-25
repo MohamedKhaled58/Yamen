@@ -41,10 +41,10 @@ namespace Yamen {
         m_Camera2D = std::make_unique<Graphics::Camera2D>(1280.0f, 720.0f);
         m_Camera2D->SetPosition(640.0f, 360.0f);
 
-        // FIXED: Proper camera positioning
         m_Camera3D = std::make_unique<Graphics::Camera3D>(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-        m_Camera3D->SetPosition(0.0f, 3.0f, 10.0f);  // Camera in front, slightly above
-        m_Camera3D->SetRotation(glm::vec3(glm::radians(-10.0f), glm::radians(180.0f), 0.0f)); // Look at origin
+        m_Camera3D->SetPosition(0.0f, 5.0f, -15.0f);
+        // Yaw 90 degrees to look at +Z (where objects are), Pitch -15 to look slightly down
+        m_Camera3D->SetRotation(glm::vec3(glm::radians(-15.0f), glm::radians(90.0f), 0.0f));
 
         // Create test meshes
         CreateTestMeshes();
@@ -109,16 +109,16 @@ namespace Yamen {
             );
             m_Renderer3D->SubmitLight(sunLight);
 
-            // Draw ground plane
+            // Draw ground plane at origin
             glm::mat4 planeTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f));
             m_Renderer3D->DrawMesh(m_PlaneMesh.get(), planeTransform, nullptr, glm::vec4(0.3f, 0.5f, 0.3f, 1.0f));
 
-            // Draw rotating cube
+            // Draw rotating cube - left side
             glm::mat4 cubeTransform = glm::translate(glm::mat4(1.0f), glm::vec3(-3.0f, 0.0f, 0.0f));
             cubeTransform = glm::rotate(cubeTransform, m_Rotation, glm::vec3(0.0f, 1.0f, 0.0f));
             m_Renderer3D->DrawMesh(m_CubeMesh.get(), cubeTransform, nullptr, glm::vec4(1.0f, 0.3f, 0.3f, 1.0f));
 
-            // Draw rotating sphere
+            // Draw rotating sphere - right side
             glm::mat4 sphereTransform = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f));
             sphereTransform = glm::rotate(sphereTransform, m_Rotation * 0.7f, glm::vec3(1.0f, 0.0f, 1.0f));
             m_Renderer3D->DrawMesh(m_SphereMesh.get(), sphereTransform, nullptr, glm::vec4(0.3f, 0.3f, 1.0f, 1.0f));
@@ -152,7 +152,7 @@ namespace Yamen {
             m_Renderer2D->EndScene();
         }
     }
-
+    
     void DemoScene::RenderImGui() {
         ImGui::Begin("Demo Scene Controls");
 

@@ -178,7 +178,8 @@ namespace Yamen::Graphics {
             float _pad0;
         } perFrameData;
         
-        perFrameData.ViewProjection = m_CurrentCamera->GetViewProjectionMatrix();
+        // IMPORTANT: Transpose matrices for HLSL (GLM is column-major, HLSL expects row-major)
+        perFrameData.ViewProjection = glm::transpose(m_CurrentCamera->GetViewProjectionMatrix());
         perFrameData.CameraPosition = m_CurrentCamera->GetPosition();
         perFrameData._pad0 = 0.0f;
         
@@ -192,7 +193,8 @@ namespace Yamen::Graphics {
             glm::vec4 MaterialColor;
         } perObjectData;
         
-        perObjectData.World = transform;
+        // IMPORTANT: Transpose world matrix for HLSL
+        perObjectData.World = glm::transpose(transform);
         perObjectData.MaterialColor = color;
         
         m_PerObjectCB->Update(&perObjectData, sizeof(PerObjectData));
