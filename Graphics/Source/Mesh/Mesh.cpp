@@ -45,6 +45,21 @@ namespace Yamen::Graphics {
         return true;
     }
 
+    bool Mesh::CreateWithSubMeshes(const std::vector<Vertex3D>& vertices, 
+                                   const std::vector<uint32_t>& indices,
+                                   const std::vector<SubMesh>& subMeshes) {
+        // Create buffers normally
+        if (!Create(vertices, indices)) {
+            return false;
+        }
+
+        // Store submeshes
+        m_SubMeshes = subMeshes;
+
+        YAMEN_CORE_TRACE("Mesh created with {} submeshes", m_SubMeshes.size());
+        return true;
+    }
+
     void Mesh::Bind() {
         m_VertexBuffer->Bind();
         m_IndexBuffer->Bind();
@@ -54,6 +69,18 @@ namespace Yamen::Graphics {
         auto context = m_Device.GetContext();
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->DrawIndexed(m_IndexCount, 0, 0);
+    }
+
+    void Mesh::DrawSubMesh(uint32_t submeshIndex) {
+        if (submeshIndex >= m_SubMeshes.size()) {
+            YAMEN_CORE_WARN("Invalid submesh index: {} (total: {})", submeshIndex, m_SubMeshes.size());
+            return;
+        }
+
+        const auto& submesh = m_SubMeshes[submeshIndex];
+        auto context = m_Device.GetContext();
+        context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context->DrawIndexed(submesh.indexCount, submesh.startIndex, submesh.baseVertex);
     }
 
 } // namespace Yamen::Graphics

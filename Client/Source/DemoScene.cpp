@@ -167,16 +167,6 @@ namespace Yamen {
         ImGui::Text("Lighting");
         ImGui::SliderFloat3("Light Direction", &m_LightDirection.x, -1.0f, 1.0f);
         ImGui::ColorEdit3("Light Color", &m_LightColor.x);
-
-        ImGui::Separator();
-        ImGui::Text("Rotation: %.2f rad", m_Rotation);
-
-        // Add camera debug info
-        ImGui::Separator();
-        ImGui::Text("Camera Debug");
-        auto camPos = m_Camera3D->GetPosition();
-        ImGui::Text("Position: (%.2f, %.2f, %.2f)", camPos.x, camPos.y, camPos.z);
-
         ImGui::End();
     }
 

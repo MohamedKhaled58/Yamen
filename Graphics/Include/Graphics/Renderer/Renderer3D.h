@@ -60,6 +60,23 @@ namespace Yamen::Graphics {
         );
 
         /**
+         * @brief Draw mesh with material
+         */
+        void DrawMesh(
+            Mesh* mesh,
+            const glm::mat4& transform,
+            Material* material
+        );
+
+        /**
+         * @brief Draw mesh with sub-meshes (multi-material)
+         */
+        void DrawMeshWithSubMeshes(
+            Mesh* mesh,
+            const glm::mat4& transform
+        );
+
+        /**
          * @brief Set wireframe mode
          */
         void SetWireframe(bool enabled);

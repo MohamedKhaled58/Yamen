@@ -15,10 +15,15 @@
 // Shader
 #include "Graphics/Shader/ShaderCompiler.h"
 #include "Graphics/Shader/Shader.h"
+#include "Graphics/Shader/ShaderLibrary.h"
+
+// Material
+#include "Graphics/Material/Material.h"
 
 // Texture
 #include "Graphics/Texture/Texture2D.h"
 #include "Graphics/Texture/TextureLoader.h"
+#include "Graphics/Texture/TextureAtlas.h"
 
 // Renderer
 #include "Graphics/Renderer/Camera2D.h"
@@ -30,10 +35,12 @@
 // Mesh
 #include "Graphics/Mesh/Vertex.h"
 #include "Graphics/Mesh/Mesh.h"
+#include "Graphics/Mesh/SubMesh.h"
 #include "Graphics/Mesh/MeshBuilder.h"
 
 // Lighting
 #include "Graphics/Lighting/Light.h"
+#include "Graphics/Lighting/LightManager.h"
 
 namespace Yamen::Graphics {
 

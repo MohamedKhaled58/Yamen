@@ -28,8 +28,8 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-LookAt/
 Scripts/
+LookAt/
 # Compiled files
 *.obj
 *.pdb

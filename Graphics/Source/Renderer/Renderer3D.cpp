@@ -1,6 +1,11 @@
 #include "Graphics/Renderer/Renderer3D.h"
+#include "Graphics/Material/Material.h"
 #include "Graphics/Texture/TextureLoader.h"
+#include "Graphics/RHI/Buffer.h"
+#include "Graphics/RHI/Sampler.h"
+#include "Graphics/RHI/InputLayout.h"
 #include "Core/Logging/Logger.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace Yamen::Graphics {
 
@@ -18,27 +23,27 @@ namespace Yamen::Graphics {
     bool Renderer3D::Initialize() {
         // Create rasterizer states
         m_RasterizerState = std::make_unique<RasterizerState>(m_Device);
-        if (!m_RasterizerState->Create(CullMode::Back, FillMode::Solid)) {
+        if (!m_RasterizerState->Create(CullMode::Back, FillMode::Solid, false, false)) {
             YAMEN_CORE_ERROR("Failed to create rasterizer state");
             return false;
         }
 
         m_WireframeState = std::make_unique<RasterizerState>(m_Device);
-        if (!m_WireframeState->Create(CullMode::Back, FillMode::Wireframe)) {
-            YAMEN_CORE_ERROR("Failed to create wireframe state");
+        if (!m_WireframeState->Create(CullMode::Back, FillMode::Wireframe, false, false)) {
+            YAMEN_CORE_ERROR("Failed to create wireframe rasterizer state");
             return false;
         }
 
-        // Create depth/stencil state
+        // Create depth-stencil state
         m_DepthState = std::make_unique<DepthStencilState>(m_Device);
         if (!m_DepthState->Create(true, true, D3D11_COMPARISON_LESS)) {
-            YAMEN_CORE_ERROR("Failed to create depth/stencil state");
+            YAMEN_CORE_ERROR("Failed to create depth-stencil state");
             return false;
         }
 
-        // Create blend state (opaque)
+        // Create blend state
         m_BlendState = std::make_unique<BlendState>(m_Device);
-        if (!m_BlendState->Create(BlendMode::Opaque)) {
+        if (!m_BlendState->Create(BlendMode::Opaque, false)) {
             YAMEN_CORE_ERROR("Failed to create blend state");
             return false;
         }
@@ -65,21 +70,18 @@ namespace Yamen::Graphics {
         }
 
         // Create constant buffers
-        // PerFrame: ViewProjection (mat4) + CameraPosition (vec3) + padding = 80 bytes
         m_PerFrameCB = std::make_unique<Buffer>(m_Device, BufferType::Constant);
         if (!m_PerFrameCB->Create(nullptr, 80, 0, BufferUsage::Dynamic)) {
             YAMEN_CORE_ERROR("Failed to create PerFrame constant buffer");
             return false;
         }
 
-        // PerObject: World (mat4) + MaterialColor (vec4) = 80 bytes
         m_PerObjectCB = std::make_unique<Buffer>(m_Device, BufferType::Constant);
         if (!m_PerObjectCB->Create(nullptr, 80, 0, BufferUsage::Dynamic)) {
             YAMEN_CORE_ERROR("Failed to create PerObject constant buffer");
             return false;
         }
 
-        // Lighting: LightDirection (vec3) + pad + LightColor (vec3) + Intensity (float) + AmbientColor (vec3) + pad = 64 bytes
         m_LightingCB = std::make_unique<Buffer>(m_Device, BufferType::Constant);
         if (!m_LightingCB->Create(nullptr, 64, 0, BufferUsage::Dynamic)) {
             YAMEN_CORE_ERROR("Failed to create Lighting constant buffer");
@@ -178,7 +180,6 @@ namespace Yamen::Graphics {
             float _pad0;
         } perFrameData;
         
-        // IMPORTANT: Transpose matrices for HLSL (GLM is column-major, HLSL expects row-major)
         perFrameData.ViewProjection = glm::transpose(m_CurrentCamera->GetViewProjectionMatrix());
         perFrameData.CameraPosition = m_CurrentCamera->GetPosition();
         perFrameData._pad0 = 0.0f;
@@ -193,7 +194,6 @@ namespace Yamen::Graphics {
             glm::vec4 MaterialColor;
         } perObjectData;
         
-        // IMPORTANT: Transpose world matrix for HLSL
         perObjectData.World = glm::transpose(transform);
         perObjectData.MaterialColor = color;
         
@@ -234,6 +234,165 @@ namespace Yamen::Graphics {
         mesh->Draw();
     }
 
+    void Renderer3D::DrawMesh(Mesh* mesh, const glm::mat4& transform, Material* material) {
+        if (!mesh || !material || !m_InScene) {
+            return;
+        }
+
+        // Bind material (shader, textures, render states)
+        material->Bind(m_Device);
+
+        // Bind input layout (always needed)
+        m_InputLayout->Bind();
+
+        // Update per-frame constant buffer
+        struct PerFrameData {
+            glm::mat4 ViewProjection;
+            glm::vec3 CameraPosition;
+            float _pad0;
+        } perFrameData;
+        
+        perFrameData.ViewProjection = glm::transpose(m_CurrentCamera->GetViewProjectionMatrix());
+        perFrameData.CameraPosition = m_CurrentCamera->GetPosition();
+        perFrameData._pad0 = 0.0f;
+        
+        m_PerFrameCB->Update(&perFrameData, sizeof(PerFrameData));
+        m_PerFrameCB->BindToVertexShader(0);
+        m_PerFrameCB->BindToPixelShader(0);
+
+        // Update per-object constant buffer
+        struct PerObjectData {
+            glm::mat4 World;
+            glm::vec4 MaterialColor;
+        } perObjectData;
+        
+        perObjectData.World = glm::transpose(transform);
+        perObjectData.MaterialColor = material->GetVector(Material::ALBEDO_COLOR, glm::vec4(1.0f));
+        
+        m_PerObjectCB->Update(&perObjectData, sizeof(PerObjectData));
+        m_PerObjectCB->BindToVertexShader(1);
+        m_PerObjectCB->BindToPixelShader(1);
+
+        // Setup lighting (same as regular DrawMesh)
+        struct LightingData {
+            glm::vec3 LightDirection;
+            float _pad1;
+            glm::vec3 LightColor;
+            float LightIntensity;
+            glm::vec3 AmbientColor;
+            float _pad2;
+        } lightingData;
+        
+        if (!m_Lights.empty() && m_Lights[0].type == LightType::Directional) {
+            lightingData.LightDirection = m_Lights[0].direction;
+            lightingData.LightColor = m_Lights[0].color;
+            lightingData.LightIntensity = m_Lights[0].intensity;
+        } else {
+            lightingData.LightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
+            lightingData.LightColor = glm::vec3(1.0f);
+            lightingData.LightIntensity = 1.0f;
+        }
+        lightingData.AmbientColor = glm::vec3(0.2f, 0.2f, 0.2f);
+        lightingData._pad1 = 0.0f;
+        lightingData._pad2 = 0.0f;
+        
+        m_LightingCB->Update(&lightingData, sizeof(LightingData));
+        m_LightingCB->BindToVertexShader(2);
+        m_LightingCB->BindToPixelShader(2);
+
+        // Bind and draw mesh
+        mesh->Bind();
+        mesh->Draw();
+    }
+
+    void Renderer3D::DrawMeshWithSubMeshes(Mesh* mesh, const glm::mat4& transform) {
+        if (!mesh || !m_InScene) {
+            return;
+        }
+
+        if (!mesh->HasSubMeshes()) {
+            // No submeshes, draw as regular mesh
+            DrawMesh(mesh, transform);
+            return;
+        }
+
+        // Draw each submesh with its own material
+        const auto& submeshes = mesh->GetSubMeshes();
+        for (size_t i = 0; i < submeshes.size(); ++i) {
+            const auto& submesh = submeshes[i];
+            
+            if (submesh.material) {
+                submesh.material->Bind(m_Device);
+            } else {
+                m_Shader->Bind();
+                m_WhiteTexture->Bind(0);
+            }
+
+            m_InputLayout->Bind();
+
+            // Update constant buffers (same pattern)
+            struct PerFrameData {
+                glm::mat4 ViewProjection;
+                glm::vec3 CameraPosition;
+                float _pad0;
+            } perFrameData;
+            
+            perFrameData.ViewProjection = glm::transpose(m_CurrentCamera->GetViewProjectionMatrix());
+            perFrameData.CameraPosition = m_CurrentCamera->GetPosition();
+            perFrameData._pad0 = 0.0f;
+            
+            m_PerFrameCB->Update(&perFrameData, sizeof(PerFrameData));
+            m_PerFrameCB->BindToVertexShader(0);
+            m_PerFrameCB->BindToPixelShader(0);
+
+            struct PerObjectData {
+                glm::mat4 World;
+                glm::vec4 MaterialColor;
+            } perObjectData;
+            
+            perObjectData.World = glm::transpose(transform);
+            if (submesh.material) {
+                perObjectData.MaterialColor = submesh.material->GetVector(Material::ALBEDO_COLOR, glm::vec4(1.0f));
+            } else {
+                perObjectData.MaterialColor = glm::vec4(1.0f);
+            }
+            
+            m_PerObjectCB->Update(&perObjectData, sizeof(PerObjectData));
+            m_PerObjectCB->BindToVertexShader(1);
+            m_PerObjectCB->BindToPixelShader(1);
+
+            struct LightingData {
+                glm::vec3 LightDirection;
+                float _pad1;
+                glm::vec3 LightColor;
+                float LightIntensity;
+                glm::vec3 AmbientColor;
+                float _pad2;
+            } lightingData;
+            
+            if (!m_Lights.empty() && m_Lights[0].type == LightType::Directional) {
+                lightingData.LightDirection = m_Lights[0].direction;
+                lightingData.LightColor = m_Lights[0].color;
+                lightingData.LightIntensity = m_Lights[0].intensity;
+            } else {
+                lightingData.LightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
+                lightingData.LightColor = glm::vec3(1.0f);
+                lightingData.LightIntensity = 1.0f;
+            }
+            lightingData.AmbientColor = glm::vec3(0.2f, 0.2f, 0.2f);
+            lightingData._pad1 = 0.0f;
+            lightingData._pad2 = 0.0f;
+            
+            m_LightingCB->Update(&lightingData, sizeof(LightingData));
+            m_LightingCB->BindToVertexShader(2);
+            m_LightingCB->BindToPixelShader(2);
+
+            // Draw this submesh
+            mesh->Bind();
+            mesh->DrawSubMesh(static_cast<uint32_t>(i));
+        }
+    }
+
     void Renderer3D::SetWireframe(bool enabled) {
         m_Wireframe = enabled;
         if (m_InScene) {
@@ -246,8 +405,7 @@ namespace Yamen::Graphics {
     }
 
     void Renderer3D::SetupLighting() {
-        // TODO: Upload light data to shader constant buffer
-        // This will be implemented when we add constant buffer support
+        //TODO Lighting setup is now done inline in DrawMesh methods
     }
 
 } // namespace Yamen::Graphics
