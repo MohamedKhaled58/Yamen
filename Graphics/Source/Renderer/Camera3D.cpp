@@ -30,6 +30,17 @@ namespace Yamen::Graphics {
         RecalculateViewMatrix();
     }
 
+    void Camera3D::SetTransform(const glm::vec3& position, const glm::quat& rotation) {
+        m_Position = position;
+        
+        // Calculate vectors directly from quaternion
+        m_Forward = glm::normalize(rotation * glm::vec3(0.0f, 0.0f, 1.0f)); // +Z Forward
+        m_Right   = glm::normalize(rotation * glm::vec3(1.0f, 0.0f, 0.0f)); // +X Right
+        m_Up      = glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f)); // +Y Up
+
+        RecalculateViewMatrix();
+    }
+
     void Camera3D::SetFOV(float fov) {
         m_FOV = fov;
         RecalculateProjectionMatrix();

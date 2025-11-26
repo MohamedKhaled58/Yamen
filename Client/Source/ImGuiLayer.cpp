@@ -1,6 +1,6 @@
 ﻿#include "Client/ImGuiLayer.h"
 #include "Client/Application.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>

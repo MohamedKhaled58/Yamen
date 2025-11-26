@@ -1,5 +1,5 @@
 #include "Graphics/Shader/Shader.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 
 namespace Yamen::Graphics {
 

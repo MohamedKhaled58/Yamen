@@ -1,7 +1,8 @@
+
 #include "Client/DemoScene.h"
 #include "Graphics/Mesh/MeshBuilder.h"
 #include "Graphics/Texture/TextureLoader.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -15,6 +16,7 @@ namespace Yamen {
         , m_Show3D(true)
         , m_LightDirection(0.0f, -1.0f, 0.3f)
         , m_LightColor(1.0f, 0.95f, 0.8f)
+        , m_UseMaterials(false)
     {
     }
 
@@ -52,6 +54,25 @@ namespace Yamen {
         // Create test textures
         CreateTestTextures();
 
+        // Create ShaderLibrary
+        m_ShaderLibrary = std::make_unique<Graphics::ShaderLibrary>(m_Device);
+        m_ShaderLibrary->PrecompileDefaults(); // Loads C3 shaders
+
+        // Create LightManager
+        m_LightManager = std::make_unique<Graphics::LightManager>();
+
+        // Setup lights
+        m_SunLight = Graphics::Light::CreateDirectional(glm::vec3(0.3f, -1.0f, 0.2f), glm::vec3(1.0f, 0.95f, 0.8f), 0.8f);
+        m_PointLight1 = Graphics::Light::CreatePoint(glm::vec3(-5, 3, 5), glm::vec3(1, 0, 0), 2.0f, 10.0f);
+        m_PointLight2 = Graphics::Light::CreatePoint(glm::vec3(5, 3, 5), glm::vec3(0, 0, 1), 2.0f, 10.0f);
+
+        m_LightManager->AddLight(&m_SunLight);
+        m_LightManager->AddLight(&m_PointLight1);
+        m_LightManager->AddLight(&m_PointLight2);
+
+        // Call CreateTestMaterials
+        CreateTestMaterials();
+
         YAMEN_CORE_INFO("Demo Scene initialized successfully");
         return true;
     }
@@ -88,6 +109,30 @@ namespace Yamen {
         YAMEN_CORE_INFO("Test textures created");
     }
 
+    void DemoScene::CreateTestMaterials() {
+        auto* shader = m_ShaderLibrary->Get("Basic3D");
+
+        // Red material
+        m_RedMaterial = std::make_unique<Graphics::Material>();
+        m_RedMaterial->SetShader(shader);
+        m_RedMaterial->SetTexture(Graphics::Material::DIFFUSE_TEXTURE, m_TestTexture.get());
+        m_RedMaterial->SetVector(Graphics::Material::ALBEDO_COLOR, glm::vec4(1, 0, 0, 1));
+
+        // Green material
+        m_GreenMaterial = std::make_unique<Graphics::Material>();
+        m_GreenMaterial->SetShader(shader);
+        m_GreenMaterial->SetTexture(Graphics::Material::DIFFUSE_TEXTURE, m_TestTexture.get());
+        m_GreenMaterial->SetVector(Graphics::Material::ALBEDO_COLOR, glm::vec4(0, 1, 0, 1));
+
+        // Blue material
+        m_BlueMaterial = std::make_unique<Graphics::Material>();
+        m_BlueMaterial->SetShader(shader);
+        m_BlueMaterial->SetTexture(Graphics::Material::DIFFUSE_TEXTURE, m_TestTexture.get());
+        m_BlueMaterial->SetVector(Graphics::Material::ALBEDO_COLOR, glm::vec4(0, 0, 1, 1));
+
+        YAMEN_CORE_INFO("Test materials created");
+    }
+
     void DemoScene::Update(float deltaTime) {
         // Rotate meshes
         m_Rotation += deltaTime * 0.5f;
@@ -101,27 +146,32 @@ namespace Yamen {
             m_Renderer3D->BeginScene(m_Camera3D.get());
             m_Renderer3D->SetWireframe(m_ShowWireframe);
 
-            // Submit directional light
-            auto sunLight = Graphics::Light::CreateDirectional(
-                glm::normalize(m_LightDirection),
-                m_LightColor,
-                1.0f
-            );
-            m_Renderer3D->SubmitLight(sunLight);
+            // Update sun light from ImGui controls
+            m_SunLight.direction = glm::normalize(m_LightDirection);
+            m_SunLight.color = m_LightColor;
+            
+            m_Renderer3D->SubmitLight(m_SunLight);
+            m_Renderer3D->SubmitLight(m_PointLight1);
+            m_Renderer3D->SubmitLight(m_PointLight2);
 
-            // Draw ground plane at origin
+            // Transforms
             glm::mat4 planeTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f));
-            m_Renderer3D->DrawMesh(m_PlaneMesh.get(), planeTransform, nullptr, glm::vec4(0.3f, 0.5f, 0.3f, 1.0f));
-
-            // Draw rotating cube - left side
             glm::mat4 cubeTransform = glm::translate(glm::mat4(1.0f), glm::vec3(-3.0f, 0.0f, 0.0f));
             cubeTransform = glm::rotate(cubeTransform, m_Rotation, glm::vec3(0.0f, 1.0f, 0.0f));
-            m_Renderer3D->DrawMesh(m_CubeMesh.get(), cubeTransform, nullptr, glm::vec4(1.0f, 0.3f, 0.3f, 1.0f));
-
-            // Draw rotating sphere - right side
             glm::mat4 sphereTransform = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f));
             sphereTransform = glm::rotate(sphereTransform, m_Rotation * 0.7f, glm::vec3(1.0f, 0.0f, 1.0f));
-            m_Renderer3D->DrawMesh(m_SphereMesh.get(), sphereTransform, nullptr, glm::vec4(0.3f, 0.3f, 1.0f, 1.0f));
+
+            if (m_UseMaterials) {
+                // Render with materials (different colors)
+                m_Renderer3D->DrawMesh(m_PlaneMesh.get(), planeTransform, m_GreenMaterial.get());
+                m_Renderer3D->DrawMesh(m_CubeMesh.get(), cubeTransform, m_RedMaterial.get());
+                m_Renderer3D->DrawMesh(m_SphereMesh.get(), sphereTransform, m_BlueMaterial.get());
+            } else {
+                // Original rendering
+                m_Renderer3D->DrawMesh(m_PlaneMesh.get(), planeTransform, nullptr, glm::vec4(0.3f, 0.5f, 0.3f, 1.0f));
+                m_Renderer3D->DrawMesh(m_CubeMesh.get(), cubeTransform, nullptr, glm::vec4(1.0f, 0.3f, 0.3f, 1.0f));
+                m_Renderer3D->DrawMesh(m_SphereMesh.get(), sphereTransform, nullptr, glm::vec4(0.3f, 0.3f, 1.0f, 1.0f));
+            }
 
             m_Renderer3D->EndScene();
         }
@@ -162,9 +212,11 @@ namespace Yamen {
         ImGui::Checkbox("Show 2D", &m_Show2D);
         ImGui::Checkbox("Show 3D", &m_Show3D);
         ImGui::Checkbox("Wireframe", &m_ShowWireframe);
+        ImGui::Checkbox("Use Materials", &m_UseMaterials);
 
         ImGui::Separator();
         ImGui::Text("Lighting");
+        ImGui::Text("Lights: %zu active", m_LightManager->GetLightCount());
         ImGui::SliderFloat3("Light Direction", &m_LightDirection.x, -1.0f, 1.0f);
         ImGui::ColorEdit3("Light Color", &m_LightColor.x);
         ImGui::End();

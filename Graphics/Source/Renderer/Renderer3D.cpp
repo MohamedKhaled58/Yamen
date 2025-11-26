@@ -4,7 +4,7 @@
 #include "Graphics/RHI/Buffer.h"
 #include "Graphics/RHI/Sampler.h"
 #include "Graphics/RHI/InputLayout.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Yamen::Graphics {
@@ -13,7 +13,10 @@ namespace Yamen::Graphics {
         : m_Device(device)
         , m_CurrentCamera(nullptr)
         , m_InScene(false)
+        , m_InShadowPass(false)
         , m_Wireframe(false)
+        , m_CurrentShadowMap(nullptr)
+        , m_CurrentShadowLight(nullptr)
     {
     }
 
@@ -68,6 +71,12 @@ namespace Yamen::Graphics {
             YAMEN_CORE_ERROR("Failed to load Basic3D shader");
             return false;
         }
+
+        // Load Shadow shader (reuse Basic3D VS for now, or a dedicated one)
+        // For simplicity, we'll assume a "ShadowMap.hlsl" exists or use a null pixel shader technique
+        // But since we don't have ShadowMap.hlsl yet, we'll skip creating it here and assume the user will provide it or we use a simple depth-only pass
+        // TODO: Create ShadowMap.hlsl
+
 
         // Create constant buffers
         m_PerFrameCB = std::make_unique<Buffer>(m_Device, BufferType::Constant);
@@ -135,6 +144,46 @@ namespace Yamen::Graphics {
         m_CurrentCamera = nullptr;
     }
 
+    void Renderer3D::BeginShadowPass(ShadowMap* shadowMap, Light* light) {
+        if (m_InScene) {
+            YAMEN_CORE_WARN("Cannot begin shadow pass while in scene");
+            return;
+        }
+        
+        m_InShadowPass = true;
+        m_CurrentShadowMap = shadowMap;
+        m_CurrentShadowLight = light;
+
+        // Bind shadow map DSV
+        m_CurrentShadowMap->BindDSV();
+        m_CurrentShadowMap->Clear();
+
+        // Set rasterizer (front-face culling for shadows to avoid peter-panning)
+        // m_RasterizerState->Bind(); // Or a specific shadow rasterizer state
+    }
+
+    void Renderer3D::EndShadowPass() {
+        m_InShadowPass = false;
+        m_CurrentShadowMap = nullptr;
+        m_CurrentShadowLight = nullptr;
+        
+        // Restore default render target (back buffer) - will be handled by next BeginScene
+        // Note: SwapChain manages the back buffer, not GraphicsDevice
+        // ID3D11RenderTargetView* rtv = m_Device.GetBackBufferRTV();
+        // ID3D11DepthStencilView* dsv = m_Device.GetDepthStencilView();
+        // m_Device.GetContext()->OMSetRenderTargets(1, &rtv, dsv);
+        
+        // Restore viewport - will be set by next BeginScene
+        D3D11_VIEWPORT viewport;
+        viewport.TopLeftX = 0;
+        viewport.TopLeftY = 0;
+        viewport.Width = 1280; // TODO: Get from window
+        viewport.Height = 720;
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+        m_Device.GetContext()->RSSetViewports(1, &viewport);
+    }
+
     void Renderer3D::SubmitLight(const Light& light) {
         if (!m_InScene) {
             YAMEN_CORE_WARN("Renderer3D::SubmitLight called outside BeginScene/EndScene");
@@ -150,8 +199,8 @@ namespace Yamen::Graphics {
         Texture2D* texture,
         const glm::vec4& color)
     {
-        if (!m_InScene) {
-            YAMEN_CORE_WARN("Renderer3D::DrawMesh called outside BeginScene/EndScene");
+        if (!m_InScene && !m_InShadowPass) {
+            YAMEN_CORE_WARN("Renderer3D::DrawMesh called outside BeginScene/EndScene or ShadowPass");
             return;
         }
 
@@ -171,7 +220,15 @@ namespace Yamen::Graphics {
         m_InputLayout->Bind();
 
         // Bind shader
-        m_Shader->Bind();
+        if (m_InShadowPass) {
+            // Use shadow shader (vertex only usually)
+            // For now, we'll reuse the main shader but we should really have a dedicated one
+            m_Shader->Bind(); 
+            // TODO: Unbind pixel shader for shadow pass
+            m_Device.GetContext()->PSSetShader(nullptr, nullptr, 0);
+        } else {
+            m_Shader->Bind();
+        }
 
         // Update PerFrame constant buffer (b0)
         struct PerFrameData {
@@ -186,7 +243,10 @@ namespace Yamen::Graphics {
         
         m_PerFrameCB->Update(&perFrameData, sizeof(PerFrameData));
         m_PerFrameCB->BindToVertexShader(0);
-        m_PerFrameCB->BindToPixelShader(0);
+        
+        if (!m_InShadowPass) {
+            m_PerFrameCB->BindToPixelShader(0);
+        }
 
         // Update PerObject constant buffer (b1)
         struct PerObjectData {
@@ -199,7 +259,10 @@ namespace Yamen::Graphics {
         
         m_PerObjectCB->Update(&perObjectData, sizeof(PerObjectData));
         m_PerObjectCB->BindToVertexShader(1);
-        m_PerObjectCB->BindToPixelShader(1);
+        
+        if (!m_InShadowPass) {
+            m_PerObjectCB->BindToPixelShader(1);
+        }
 
         // Update Lighting constant buffer (b2)
         struct LightingData {
@@ -225,9 +288,11 @@ namespace Yamen::Graphics {
         lightingData._pad1 = 0.0f;
         lightingData._pad2 = 0.0f;
         
-        m_LightingCB->Update(&lightingData, sizeof(LightingData));
-        m_LightingCB->BindToVertexShader(2);
-        m_LightingCB->BindToPixelShader(2);
+        if (!m_InShadowPass) {
+            m_LightingCB->Update(&lightingData, sizeof(LightingData));
+            m_LightingCB->BindToVertexShader(2);
+            m_LightingCB->BindToPixelShader(2);
+        }
 
         // Bind and draw mesh
         mesh->Bind();
@@ -236,7 +301,20 @@ namespace Yamen::Graphics {
 
     void Renderer3D::DrawMesh(Mesh* mesh, const glm::mat4& transform, Material* material) {
         if (!mesh || !material || !m_InScene) {
+            static bool logged = false;
+            if (!logged) {
+                YAMEN_CORE_WARN("DrawMesh early return: mesh={}, material={}, inScene={}", 
+                    mesh != nullptr, material != nullptr, m_InScene);
+                logged = true;
+            }
             return;
+        }
+
+        // Debug: Log once
+        static bool drawLogged = false;
+        if (!drawLogged) {
+            YAMEN_CORE_INFO("DrawMesh called: mesh valid, material valid, binding...");
+            drawLogged = true;
         }
 
         // Bind material (shader, textures, render states)

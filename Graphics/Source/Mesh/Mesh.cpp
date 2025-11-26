@@ -1,5 +1,5 @@
 #include "Graphics/Mesh/Mesh.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 
 namespace Yamen::Graphics {
 

@@ -3,6 +3,9 @@ project "EngineCore"
     language "C++"
     cppdialect "C++latest"
     staticruntime "off"
+
+    defines { "GLM_ENABLE_EXPERIMENTAL" }
+
     
     targetdir ("../bin/" .. outputdir .. "/%{prj.name}")
     objdir ("../bin-int/" .. outputdir .. "/%{prj.name}")

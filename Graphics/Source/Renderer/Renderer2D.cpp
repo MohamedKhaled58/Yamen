@@ -1,6 +1,6 @@
 #include "Graphics/Renderer/Renderer2D.h"
 #include "Graphics/Texture/TextureLoader.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 
 namespace Yamen::Graphics {
 

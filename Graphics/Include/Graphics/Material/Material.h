@@ -28,6 +28,7 @@ namespace Yamen::Graphics {
         Shader* GetShader() const { return m_Shader; }
 
         void SetBlendState(BlendState* state) { m_BlendState = state; }
+        BlendState* GetBlendState() const { return m_BlendState; }
         void SetDepthStencilState(DepthStencilState* state) { m_DepthState = state; }
         void SetRasterizerState(RasterizerState* state) { m_RasterizerState = state; }
 

@@ -9,6 +9,10 @@
 #include "Client/DemoScene.h"
 #endif
 
+#if ENABLE_ECS_SCENE
+#include "Client/ECSScene.h"
+#endif
+
 #include <memory>
 
 namespace Yamen::Client {
@@ -38,6 +42,10 @@ namespace Yamen::Client {
 #if ENABLE_DEMO_SCENE
         // === DEMO SCENE (Can be disabled in Config.h) ===
         std::unique_ptr<DemoScene> m_DemoScene;
+#endif
+
+#if ENABLE_ECS_SCENE
+        std::unique_ptr<ECSScene> m_ECSScene;
 #endif
     };
 

@@ -11,6 +11,7 @@
 #include "Graphics/RHI/BlendState.h"
 #include "Graphics/RHI/Sampler.h"
 #include "Graphics/RHI/InputLayout.h"
+#include "Graphics/Lighting/ShadowMap.h"
 #include <glm/glm.hpp>
 #include <vector>
 #include <memory>
@@ -43,6 +44,16 @@ namespace Yamen::Graphics {
          * @brief End 3D scene
          */
         void EndScene();
+
+        /**
+         * @brief Begin shadow pass
+         */
+        void BeginShadowPass(ShadowMap* shadowMap, Light* light);
+
+        /**
+         * @brief End shadow pass
+         */
+        void EndShadowPass();
 
         /**
          * @brief Submit light to scene
@@ -102,7 +113,12 @@ namespace Yamen::Graphics {
         Camera3D* m_CurrentCamera;
         std::vector<Light> m_Lights;
         bool m_InScene;
+        bool m_InShadowPass;
         bool m_Wireframe;
+        
+        ShadowMap* m_CurrentShadowMap;
+        Light* m_CurrentShadowLight;
+        std::unique_ptr<Shader> m_ShadowShader;
     };
 
 } // namespace Yamen::Graphics

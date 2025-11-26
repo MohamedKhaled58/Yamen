@@ -1,7 +1,7 @@
 #include "Graphics/Shader/ShaderLibrary.h"
 #include "Graphics/Shader/Shader.h"
 #include "Graphics/RHI/GraphicsDevice.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 
 namespace Yamen::Graphics {
 
@@ -93,11 +93,11 @@ namespace Yamen::Graphics {
 
     void ShaderLibrary::PrecompileDefaults() {
         // Precompile commonly used shaders
-        Load("Sprite2D", "Assets/Shaders/Sprite2D.hlsl", "Assets/Shaders/Sprite2D.hlsl");
-        Load("Basic3D", "Assets/Shaders/Basic3D.hlsl", "Assets/Shaders/Basic3D.hlsl");
-        Load("C3Sprite", "Assets/Shaders/C3Sprite.hlsl", "Assets/Shaders/C3Sprite.hlsl");
-        Load("C3PhyMesh", "Assets/Shaders/C3PhyMesh.hlsl", "Assets/Shaders/C3PhyMesh.hlsl");
-        Load("C3Skin", "Assets/Shaders/C3Skin.hlsl", "Assets/Shaders/C3Skin.hlsl");
+        Load("Sprite2D", "C:/dev/C3Renderer/Yamen/Assets/Shaders/Sprite2D.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/Sprite2D.hlsl");
+        Load("Basic3D", "C:/dev/C3Renderer/Yamen/Assets/Shaders/Basic3D.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/Basic3D.hlsl");
+        Load("C3Sprite", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3Sprite.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3Sprite.hlsl");
+        Load("C3PhyMesh", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3PhyMesh.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3PhyMesh.hlsl");
+        Load("C3Skin", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3Skin.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/C3Skin.hlsl");
 
         YAMEN_CORE_INFO("Precompiled default shaders");
     }

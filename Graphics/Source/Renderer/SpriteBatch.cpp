@@ -1,5 +1,5 @@
 #include "Graphics/Renderer/SpriteBatch.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Yamen::Graphics {

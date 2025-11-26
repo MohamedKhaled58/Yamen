@@ -75,7 +75,7 @@ PSInput VSMain(VSInput input)
     output.Position = mul(float4(blendedVertex, 1.0), ModelViewProj);
     
     // UV animation
-    output.TexCo = input.TexCoord + UVAnimStep;
+    output.TexCoord = input.TexCoord + UVAnimStep;
     output.Color = input.Color;
     
     return output;

@@ -1,6 +1,6 @@
 #include "Client/GameLayer.h"
 #include "Client/Application.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include "Graphics/Texture/TextureLoader.h"
 #include "Platform/Input.h"
 #include "Platform/Events/ApplicationEvents.h"
@@ -34,6 +34,14 @@ namespace Yamen::Client {
             YAMEN_CLIENT_ERROR("Failed to initialize demo scene");
         }
 #endif
+
+#if ENABLE_ECS_SCENE
+        // === ECS SCENE INITIALIZATION ===
+        m_ECSScene = std::make_unique<ECSScene>(device);
+        if (!m_ECSScene->Initialize()) {
+            YAMEN_CLIENT_ERROR("Failed to initialize ECS scene");
+        }
+#endif
     }
 
     void GameLayer::OnDetach() {
@@ -41,6 +49,10 @@ namespace Yamen::Client {
 
 #if ENABLE_DEMO_SCENE
         m_DemoScene.reset();
+#endif
+
+#if ENABLE_ECS_SCENE
+        m_ECSScene.reset();
 #endif
     }
 
@@ -78,42 +90,32 @@ namespace Yamen::Client {
         // === UPDATE DEMO SCENE ===
         m_DemoScene->Update(deltaTime);
 #endif
+
+#if ENABLE_ECS_SCENE
+        // === UPDATE ECS SCENE ===
+        if (m_ECSScene) {
+            m_ECSScene->Update(deltaTime);
+        }
+#endif
     }
 
     void GameLayer::OnRender() {
 #if ENABLE_DEMO_SCENE
-        // === RENDER DEMO SCENE ===
-        m_DemoScene->Render();
-#else
-        // Production rendering code goes here
-        // TODO: Implement game rendering
+        if (m_DemoScene) {
+            m_DemoScene->Render();
+        }
+#endif
+
+#if ENABLE_ECS_SCENE
+        if (m_ECSScene) {
+            m_ECSScene->Render();
+        }
 #endif
     }
 
     void GameLayer::OnEvent(Platform::Event& event) {
-        if (auto* resizeEvent = dynamic_cast<Platform::WindowResizeEvent*>(&event)) {
-            uint32_t width = resizeEvent->GetWidth();
-            uint32_t height = resizeEvent->GetHeight();
-            
-            if (width > 0 && height > 0) {
-                float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-                
-                // Update 2D camera
-                if (m_Camera) {
-                    m_Camera->SetViewportSize(static_cast<float>(width), static_cast<float>(height));
-                }
-
-#if ENABLE_DEMO_SCENE
-                // Update 3D camera in demo scene
-                if (m_DemoScene) {
-                    auto* camera3D = m_DemoScene->GetCamera3D();
-                    if (camera3D) {
-                        camera3D->SetAspectRatio(aspectRatio);
-                    }
-                }
-#endif
-            }
-        }
+        // Handle events if needed
+        // For now, ECS handles input via Platform::Input polling in scripts
     }
 
     void GameLayer::OnImGuiRender() {
@@ -159,6 +161,12 @@ namespace Yamen::Client {
 
                 ImGui::End();
             }
+        }
+#endif
+
+#if ENABLE_ECS_SCENE
+        if (m_ECSScene) {
+            m_ECSScene->RenderImGui();
         }
 #endif
     }

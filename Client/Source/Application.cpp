@@ -1,7 +1,7 @@
 ﻿#include "Client/Application.h"
 #include "Client/GameLayer.h"
 #include "Client/ImGuiLayer.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include "Graphics/RHI/RenderTarget.h"
 #include "Graphics/RHI/DepthStencilBuffer.h"
 #include "Platform/Timer.h"

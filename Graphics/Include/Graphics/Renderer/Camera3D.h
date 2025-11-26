@@ -6,6 +6,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace Yamen::Graphics {
 
@@ -28,6 +29,11 @@ namespace Yamen::Graphics {
          */
         void SetRotation(const glm::vec3& rotation);
         void SetRotation(float pitch, float yaw, float roll) { SetRotation(glm::vec3(pitch, yaw, roll)); }
+
+        /**
+         * @brief Set camera transform directly (Position + Rotation Quaternion)
+         */
+        void SetTransform(const glm::vec3& position, const glm::quat& rotation);
 
         /**
          * @brief Set field of view (in degrees)

@@ -17,7 +17,8 @@ namespace Yamen::Config {
      * Set to 0 to disable all demo/test code.
      * Set to 1 to enable demo scene in GameLayer.
      */
-    #define ENABLE_DEMO_SCENE 1
+    #define ENABLE_DEMO_SCENE 0
+    #define ENABLE_ECS_SCENE 1
 
     // ========================================
     // GRAPHICS SETTINGS

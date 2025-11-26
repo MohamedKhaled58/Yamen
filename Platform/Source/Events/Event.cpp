@@ -1,5 +1,5 @@
 #include "Platform/Events/Event.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include <unordered_map>
 #include <vector>
 #include <queue>

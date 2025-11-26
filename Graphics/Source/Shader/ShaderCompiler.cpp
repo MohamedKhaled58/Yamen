@@ -1,5 +1,5 @@
 #include "Graphics/Shader/ShaderCompiler.h"
-#include "Core/Logging/Logger.h"
+#include <Core/Logging/Logger.h>
 #include "Core/Utils/FileSystem.h"
 #include <d3dcompiler.h>
 

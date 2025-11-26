@@ -16,8 +16,11 @@ project "ECS"
         "Include",
         "../EngineCore/Include",
         "../Platform/Include",
+        "../Graphics/Include",
+        "../World/Include",
         "%{IncludeDirs.entt}",
-        "%{IncludeDirs.glm}"
+        "%{IncludeDirs.glm}",
+        "%{IncludeDirs.spdlog}"
     }
     
     links {
