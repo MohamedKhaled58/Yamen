@@ -26,7 +26,8 @@ project "Client"
         "%{IncludeDirs.fmt}",
         "%{IncludeDirs.glm}",
         "%{IncludeDirs.entt}",
-        "%{IncludeDirs.imgui}"
+        "%{IncludeDirs.imgui}",
+        "../ThirdParty/ImGuizmo"
     }
     
     links {
@@ -38,7 +39,8 @@ project "Client"
         "IO",
         "AssetsC3",
         "World",
-        "ImGui"
+        "ImGui",
+        "ImGuizmo"
     }
     
     filter "system:windows"

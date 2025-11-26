@@ -34,7 +34,8 @@ namespace Yamen::Graphics {
         m_Position = position;
         
         // Calculate vectors directly from quaternion
-        m_Forward = glm::normalize(rotation * glm::vec3(0.0f, 0.0f, 1.0f)); // +Z Forward
+        // Using -Z forward for LookAt convention (matches CameraController)
+        m_Forward = glm::normalize(rotation * glm::vec3(0.0f, 0.0f, -1.0f)); // -Z Forward (LookAt)
         m_Right   = glm::normalize(rotation * glm::vec3(1.0f, 0.0f, 0.0f)); // +X Right
         m_Up      = glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f)); // +Y Up
 

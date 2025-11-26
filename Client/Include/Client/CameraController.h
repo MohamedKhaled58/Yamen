@@ -8,15 +8,6 @@
 
 namespace Yamen::Client {
 
-    /**
-     * @brief Standard FPS Camera Controller (Y-Up)
-     * 
-     * Uses quaternions for robust rotation and correct coordinate system alignment.
-     * Engine Coordinate System (Standard DirectX):
-     * - Forward: +Z
-     * - Right:   +X
-     * - Up:      +Y
-     */
     class CameraController : public ECS::ScriptableEntity {
     public:
         float MoveSpeed = 5.0f;
@@ -30,7 +21,6 @@ namespace Yamen::Client {
             
             if (HasComponent<ECS::TransformComponent>()) {
                 auto& transform = GetComponent<ECS::TransformComponent>();
-                // Standard Y-Up: Yaw around Y, Pitch around X
                 glm::vec3 euler = glm::eulerAngles(transform.Rotation);
                 m_Yaw = euler.y; 
                 m_Pitch = euler.x;
@@ -40,10 +30,8 @@ namespace Yamen::Client {
         void OnUpdate(float deltaTime) override {
             auto& transform = GetComponent<ECS::TransformComponent>();
             
-            // Calculate movement speed
             float speed = Platform::Input::IsKeyPressed(Platform::KeyCode::LeftShift) 
                 ? FastMoveSpeed : MoveSpeed;
-            speed *= deltaTime;
 
             // Mouse Look
             if (Platform::Input::IsMouseButtonPressed(Platform::MouseButton::Right)) {
@@ -61,9 +49,7 @@ namespace Yamen::Client {
                 m_LastMouseX = mouseX;
                 m_LastMouseY = mouseY;
 
-                // Yaw rotates around World Up (Y)
-                // Pitch rotates around Local Right (X)
-                m_Yaw -= deltaX * LookSensitivity; 
+                m_Yaw += deltaX * LookSensitivity; 
                 m_Pitch -= deltaY * LookSensitivity;
 
                 const float maxPitch = glm::radians(89.0f);
@@ -73,40 +59,35 @@ namespace Yamen::Client {
                 m_FirstMouse = true;
             }
 
-            // Calculate Rotation Quaternion
-            // 1. Yaw around World Up (+Y)
-            glm::quat qYaw = glm::angleAxis(m_Yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-            // 2. Pitch around Local Right (+X)
-            glm::quat qPitch = glm::angleAxis(m_Pitch, glm::vec3(1.0f, 0.0f, 0.0f));
+            // Calculate forward and right vectors
+            glm::vec3 forward = glm::normalize(glm::vec3(
+                glm::cos(m_Yaw) * glm::cos(m_Pitch),
+                glm::sin(m_Pitch),
+                glm::sin(m_Yaw) * glm::cos(m_Pitch)
+            ));
             
-            transform.Rotation = qYaw * qPitch;
-
-            // Calculate Basis Vectors
-            // Forward = Rotation * BaseForward (+Z)
-            // Right   = Rotation * BaseRight   (+X)
-            // Up      = Rotation * BaseUp      (+Y)
-            glm::vec3 forward = transform.Rotation * glm::vec3(0.0f, 0.0f, 1.0f);
-            glm::vec3 right   = transform.Rotation * glm::vec3(1.0f, 0.0f, 0.0f);
-            glm::vec3 up      = glm::vec3(0.0f, 1.0f, 0.0f); // World Up is Y
-
-            // Movement Input (Standard WASD)
+            glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+            
+            // Movement (W=forward, S=back, A=left, D=right)
             if (Platform::Input::IsKeyPressed(Platform::KeyCode::W))
-                transform.Translation += forward * speed;
-            
+                transform.Translation += forward * speed * deltaTime;
             if (Platform::Input::IsKeyPressed(Platform::KeyCode::S))
-                transform.Translation -= forward * speed;
-            
+                transform.Translation -= forward * speed * deltaTime;
             if (Platform::Input::IsKeyPressed(Platform::KeyCode::A))
-                transform.Translation -= right * speed;
-            
+                transform.Translation -= right * speed * deltaTime;
             if (Platform::Input::IsKeyPressed(Platform::KeyCode::D))
-                transform.Translation += right * speed;
+                transform.Translation += right * speed * deltaTime;
             
-            if (Platform::Input::IsKeyPressed(Platform::KeyCode::E))
-                transform.Translation += up * speed;
+            // Vertical movement
+            if (Platform::Input::IsKeyPressed(Platform::KeyCode::Space))
+                transform.Translation.y += speed * deltaTime;
+            if (Platform::Input::IsKeyPressed(Platform::KeyCode::LeftControl))
+                transform.Translation.y -= speed * deltaTime;
             
-            if (Platform::Input::IsKeyPressed(Platform::KeyCode::Q))
-                transform.Translation -= up * speed;
+            // Update rotation
+            glm::quat qYaw = glm::angleAxis(m_Yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::quat qPitch = glm::angleAxis(m_Pitch, glm::vec3(1.0f, 0.0f, 0.0f));
+            transform.Rotation = qYaw * qPitch;
         }
 
     private:

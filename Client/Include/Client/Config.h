@@ -18,7 +18,11 @@ namespace Yamen::Config {
      * Set to 1 to enable demo scene in GameLayer.
      */
     #define ENABLE_DEMO_SCENE 0
-    #define ENABLE_ECS_SCENE 1
+    #define ENABLE_ECS_SCENE 0
+    #define ENABLE_LIGHT_SCENE 1
+    #define ENABLE_CAMERA_SCENE 0
+    #define ENABLE_PHY_SCENE 0
+
 
     // ========================================
     // GRAPHICS SETTINGS

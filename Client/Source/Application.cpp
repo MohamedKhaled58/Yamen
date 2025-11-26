@@ -16,14 +16,19 @@ namespace Yamen::Client {
     {
         // Set singleton
         s_Instance = this;
+    }
+
+    bool Application::Initialize(const EngineConfig& config) {
+        m_Config = config;
         YAMEN_CLIENT_INFO("=== Yamen Engine Starting ===");
+        YAMEN_CLIENT_INFO("Config: {} ({}x{})", config.WindowTitle, config.WindowWidth, config.WindowHeight);
 
         // Create window
         Platform::WindowProps props;
-        props.title = "Yamen Engine - Conquer Online 2.0 Client";
-        props.width = 1280;
-        props.height = 720;
-        props.vsync = true;
+        props.title = config.WindowTitle;
+        props.width = config.WindowWidth;
+        props.height = config.WindowHeight;
+        props.vsync = config.VSync;
 
         m_Window = std::make_unique<Platform::Window>(props);
         m_Window->SetEventCallback([this](Platform::Event& e) { OnEvent(e); });
@@ -32,14 +37,14 @@ namespace Yamen::Client {
         m_GraphicsDevice = std::make_unique<Graphics::GraphicsDevice>();
         if (!m_GraphicsDevice->Initialize(true)) {
             YAMEN_CLIENT_CRITICAL("Failed to initialize graphics device");
-            return;
+            return false;
         }
 
         // Create swap chain
         m_SwapChain = std::make_unique<Graphics::SwapChain>(*m_GraphicsDevice);
         if (!m_SwapChain->Create(m_Window->GetNativeHandle(), props.width, props.height, props.vsync)) {
             YAMEN_CLIENT_CRITICAL("Failed to create swap chain");
-            return;
+            return false;
         }
 
         // Create layer stack
@@ -49,10 +54,13 @@ namespace Yamen::Client {
         m_LayerStack->PushLayer(std::make_unique<GameLayer>());
 
         // Add ImGui layer as overlay (renders on top)
-        m_ImGuiLayer = new ImGuiLayer();
-        m_LayerStack->PushOverlay(std::unique_ptr<Platform::Layer>(m_ImGuiLayer));
+        if (config.EnableImGui) {
+            m_ImGuiLayer = new ImGuiLayer();
+            m_LayerStack->PushOverlay(std::unique_ptr<Platform::Layer>(m_ImGuiLayer));
+        }
 
         YAMEN_CLIENT_INFO("Application initialized");
+        return true;
     }
 
     Application::~Application() {
@@ -117,9 +125,11 @@ namespace Yamen::Client {
             m_LayerStack->OnRender();
 
             // ImGui rendering
-            m_ImGuiLayer->Begin();
-            m_LayerStack->OnImGuiRender();
-            m_ImGuiLayer->End();
+            if (m_ImGuiLayer) {
+                m_ImGuiLayer->Begin();
+                m_LayerStack->OnImGuiRender();
+                m_ImGuiLayer->End();
+            }
 
             // Present
             m_SwapChain->Present();

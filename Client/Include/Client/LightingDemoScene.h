@@ -7,30 +7,40 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Graphics/Shader/Shader.h"
 #include "Graphics/Material/Material.h"
-#include "Graphics/Texture/Texture2D.h"
 #include "ECS/Scene.h"
 #include <memory>
 #include <entt/entt.hpp>
-#include <imgui.h>
-#include <ImGuizmo.h>
 
 namespace Yamen {
 
-    class ECSScene : public IScene {
+    /**
+     * @brief Lighting Demo Scene - Advanced lighting showcase
+     * 
+     * Features:
+     * - Multiple light types (Directional, Point, Spot)
+     * - Dynamic light movement
+     * - Shadow casting
+     * - Light color animation
+     * - Day/night cycle simulation
+     */
+    class LightingDemoScene : public IScene {
     public:
-        ECSScene(Graphics::GraphicsDevice& device);
-        ~ECSScene() override;
+        LightingDemoScene(Graphics::GraphicsDevice& device);
+        ~LightingDemoScene() override;
 
         bool Initialize() override;
         void Update(float deltaTime) override;
         void Render() override;
         void RenderImGui() override;
 
-        const char* GetName() const override { return "ECS Scene"; }
+        const char* GetName() const override { return "Lighting Demo"; }
 
     private:
-        void CreateCoordinateGizmos();
-        void CreatePhysicsDemo();
+        void CreateEnvironment();
+        void CreateDirectionalLight();
+        void CreatePointLights();
+        void CreateSpotLight();
+        void UpdateLights(float deltaTime);
 
         Graphics::GraphicsDevice& m_Device;
         
@@ -39,17 +49,16 @@ namespace Yamen {
         std::unique_ptr<Graphics::Renderer2D> m_Renderer2D;
         
         std::shared_ptr<Graphics::Mesh> m_CubeMesh;
+        std::shared_ptr<Graphics::Mesh> m_SphereMesh;
         std::unique_ptr<Graphics::Shader> m_Shader;
         std::shared_ptr<Graphics::Texture2D> m_WhiteTexture;
-        std::shared_ptr<Graphics::Material> m_Material;
 
-        entt::entity m_SelectedEntity = entt::null;
+        entt::entity m_DirectionalLight = entt::null;
+        entt::entity m_SpotLight = entt::null;
+        std::vector<entt::entity> m_PointLights;
         
-        // ImGuizmo state
-        ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE;
-        ImGuizmo::MODE m_GizmoMode = ImGuizmo::WORLD;
-        bool m_UseSnap = false;
-        float m_Snap[3] = { 1.0f, 1.0f, 1.0f };
+        float m_TimeOfDay = 0.0f;
+        bool m_AnimateLights = true;
     };
 
 } // namespace Yamen

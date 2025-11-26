@@ -1,4 +1,4 @@
-#include "ECS/Systems/RenderSystem.h"
+﻿#include "ECS/Systems/RenderSystem.h"
 #include "ECS/Components.h"
 #include <Core/Logging/Logger.h>
 #include <entt/entt.hpp>
@@ -6,7 +6,9 @@
 
 namespace Yamen::ECS {
 
-    RenderSystem::RenderSystem(Graphics::GraphicsDevice& device, Graphics::Renderer3D* renderer3D, Graphics::Renderer2D* renderer2D)
+    RenderSystem::RenderSystem(Graphics::GraphicsDevice& device,
+        Graphics::Renderer3D* renderer3D,
+        Graphics::Renderer2D* renderer2D)
         : m_Device(device)
         , m_Renderer3D(renderer3D)
         , m_Renderer2D(renderer2D)
@@ -20,29 +22,30 @@ namespace Yamen::ECS {
     }
 
     void RenderSystem::OnInit(Scene* scene) {
-        // Create shadow map (2048x2048 resolution)
         m_ShadowMap = std::make_unique<Graphics::ShadowMap>(m_Device, 2048, 2048);
         YAMEN_CORE_INFO("RenderSystem initialized with ShadowMap");
     }
 
-    void RenderSystem::OnUpdate(Scene* scene, float deltaTime) {
-        // Animation or pre-render updates could go here
-    }
+    void RenderSystem::OnUpdate(Scene* scene, float deltaTime) {}
 
     void RenderSystem::OnRender(Scene* scene) {
         if (!scene || !m_Renderer3D) return;
 
-        // Find primary camera
+        entt::registry& reg = scene->Registry();
+
+        // ────────────────────────────────────────────
+        // FIND PRIMARY CAMERA
+        // ────────────────────────────────────────────
         Graphics::Camera3D* mainCamera = nullptr;
-        auto cameraView = scene->Registry().view<TransformComponent, CameraComponent>();
-        
-        // Sort by render order and find primary
-        std::vector<std::pair<entt::entity, CameraComponent*>> cameras;
-        for (auto entity : cameraView) {
-            auto& camera = cameraView.get<CameraComponent>(entity);
-            if (camera.Primary) {
-                mainCamera = &camera.Camera;
-                break;
+
+        {
+            auto cameraView = reg.view<TransformComponent, CameraComponent>();
+            for (auto entity : cameraView) {
+                auto& cam = cameraView.get<CameraComponent>(entity);
+                if (cam.Primary) {
+                    mainCamera = &cam.Camera;
+                    break;
+                }
             }
         }
 
@@ -51,28 +54,26 @@ namespace Yamen::ECS {
             return;
         }
 
-        // Update camera transforms
-        for (auto entity : cameraView) {
-            auto [transform, camera] = cameraView.get<TransformComponent, CameraComponent>(entity);
-            camera.Camera.SetPosition(transform.Translation);
-            camera.Camera.SetRotation(transform.GetRotationEuler());
+        // ────────────────────────────────────────────
+        // UPDATE CAMERA TRANSFORMS
+        // ────────────────────────────────────────────
+        {
+            auto cameraView = reg.view<TransformComponent, CameraComponent>();
+            for (auto entity : cameraView) {
+                auto& transform = cameraView.get<TransformComponent>(entity);
+                auto& cam = cameraView.get<CameraComponent>(entity);
+
+                cam.Camera.SetPosition(transform.Translation);
+                cam.Camera.SetRotation(transform.GetRotationEuler());
+            }
         }
 
-        // Debug: Log camera info once
-        static bool logged = false;
-        if (!logged) {
-            auto pos = mainCamera->GetPosition();
-            auto rot = mainCamera->GetRotation();
-            YAMEN_CORE_INFO("Camera: pos({}, {}, {}), rot({}, {}, {}), fov={}", 
-                pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, mainCamera->GetFOV());
-            logged = true;
-        }
-
-        // Multi-pass rendering
-        if (m_ShadowsEnabled && m_ShadowMap) {
+        // ────────────────────────────────────────────
+        // RENDER PASSES
+        // ────────────────────────────────────────────
+        if (m_ShadowsEnabled && m_ShadowMap)
             RenderShadowPass(scene, mainCamera);
-        }
-        
+
         RenderOpaquePass(scene, mainCamera);
         RenderTransparentPass(scene, mainCamera);
         Render2DPass(scene);
@@ -82,123 +83,133 @@ namespace Yamen::ECS {
         m_ShadowMap.reset();
     }
 
+    // =======================================================================
+    // SHADOW PASS
+    // =======================================================================
+
     void RenderSystem::RenderShadowPass(Scene* scene, Graphics::Camera3D* camera) {
-        // Find directional light for shadow casting
-        auto lightView = scene->Registry().view<TransformComponent, LightComponent>();
+        auto& reg = scene->Registry();
+
         Graphics::Light* shadowLight = nullptr;
-        
+
+        auto lightView = reg.view<TransformComponent, LightComponent>();
         for (auto entity : lightView) {
-            auto [transform, light] = lightView.get<TransformComponent, LightComponent>(entity);
-            if (light.Active && light.CastShadows && 
-                light.LightData.type == Graphics::LightType::Directional) {
-                shadowLight = &light.LightData;
+            auto& lightComp = lightView.get<LightComponent>(entity);
+            if (lightComp.Active && lightComp.CastShadows &&
+                lightComp.LightData.type == Graphics::LightType::Directional) {
+                shadowLight = &lightComp.LightData;
                 break;
             }
         }
 
         if (!shadowLight) return;
 
-        // Begin shadow pass
         m_Renderer3D->BeginShadowPass(m_ShadowMap.get(), shadowLight);
 
-        // Render shadow-casting meshes
-        auto meshView = scene->Registry().view<TransformComponent, MeshComponent>();
+        auto meshView = reg.view<TransformComponent, MeshComponent>();
         for (auto entity : meshView) {
-            auto [transform, mesh] = meshView.get<TransformComponent, MeshComponent>(entity);
+            auto& transform = meshView.get<TransformComponent>(entity);
+            auto& mesh = meshView.get<MeshComponent>(entity);
+
             if (mesh.Visible && mesh.CastShadows && mesh.Mesh) {
-                m_Renderer3D->DrawMesh(mesh.Mesh.get(), transform.GetTransform(), static_cast<Graphics::Material*>(nullptr));
+                m_Renderer3D->DrawMeshWithSubMeshes(
+                    mesh.Mesh.get(),
+                    transform.GetTransform()
+				);
             }
         }
 
         m_Renderer3D->EndShadowPass();
     }
 
+    // =======================================================================
+    // OPAQUE PASS
+    // =======================================================================
+
     void RenderSystem::RenderOpaquePass(Scene* scene, Graphics::Camera3D* camera) {
+        auto& reg = scene->Registry();
         m_Renderer3D->BeginScene(camera);
 
         // Submit lights
-        auto lightView = scene->Registry().view<TransformComponent, LightComponent>();
-        int lightCount = 0;
+        auto lightView = reg.view<TransformComponent, LightComponent>();
         for (auto entity : lightView) {
-            auto [transform, light] = lightView.get<TransformComponent, LightComponent>(entity);
-            if (light.Active) {
-                // Update light position from transform
-                light.LightData.position = transform.Translation;
-                
-                // Update direction for directional/spot lights
-                if (light.LightData.type == Graphics::LightType::Directional ||
-                    light.LightData.type == Graphics::LightType::Spot) {
-                    light.LightData.direction = transform.GetForward();
-                }
-                
-                m_Renderer3D->SubmitLight(light.LightData);
-                lightCount++;
+            auto& transform = lightView.get<TransformComponent>(entity);
+            auto& lightComp = lightView.get<LightComponent>(entity);
+
+            if (!lightComp.Active) continue;
+
+            lightComp.LightData.position = transform.Translation;
+
+            if (lightComp.LightData.type == Graphics::LightType::Directional ||
+                lightComp.LightData.type == Graphics::LightType::Spot) {
+                lightComp.LightData.direction = transform.GetForward();
             }
+
+            m_Renderer3D->SubmitLight(lightComp.LightData);
         }
 
-        // Bind shadow map if available
-        if (m_ShadowsEnabled && m_ShadowMap) {
-            m_ShadowMap->BindSRV(1); // Bind to slot 1
-        }
+        // Bind shadow map
+        if (m_ShadowsEnabled && m_ShadowMap)
+            m_ShadowMap->BindSRV(1);
 
-        // Render opaque meshes
-        auto meshView = scene->Registry().view<TransformComponent, MeshComponent>();
-        int meshCount = 0;
+        // Render meshes
+        auto meshView = reg.view<TransformComponent, MeshComponent>();
         for (auto entity : meshView) {
-            auto [transform, mesh] = meshView.get<TransformComponent, MeshComponent>(entity);
-            if (mesh.Visible && mesh.Mesh) {
-                // Debug: Log first mesh position once
-                static bool meshLogged = false;
-                if (!meshLogged) {
-                    auto pos = transform.Translation;
-                    YAMEN_CORE_INFO("Mesh: pos({}, {}, {}), visible={}, hasMaterial={}", 
-                        pos.x, pos.y, pos.z, mesh.Visible, mesh.Material != nullptr);
-                    meshLogged = true;
-                }
-                
-                m_Renderer3D->DrawMesh(
-                    mesh.Mesh.get(),
-                    transform.GetTransform(),
-                    mesh.Material.get()
-                );
-                meshCount++;
-            }
+            auto& transform = meshView.get<TransformComponent>(entity);
+            auto& mesh = meshView.get<MeshComponent>(entity);
+
+            if (!mesh.Visible || !mesh.Mesh) continue;
+
+            m_Renderer3D->DrawMesh(
+                mesh.Mesh.get(),
+                transform.GetTransform(),
+                mesh.Material.get()
+            );
         }
 
-        YAMEN_CORE_INFO("Rendered {} lights, {} meshes", lightCount, meshCount);
         m_Renderer3D->EndScene();
     }
 
+    // =======================================================================
+    // TRANSPARENT PASS
+    // =======================================================================
+
     void RenderSystem::RenderTransparentPass(Scene* scene, Graphics::Camera3D* camera) {
         if (!camera) return;
+        auto& reg = scene->Registry();
 
-        // Collect transparent meshes
-        struct TransparentMesh {
-            entt::entity Entity;
-            float DistanceSq;
+        struct TransparentItem {
+            entt::entity entity;
+            float distanceSq;
         };
-        std::vector<TransparentMesh> transparentMeshes;
 
-        auto meshView = scene->Registry().view<TransformComponent, MeshComponent>();
-        glm::vec3 cameraPos = camera->GetPosition();
+        std::vector<TransparentItem> transparentList;
+
+        auto meshView = reg.view<TransformComponent, MeshComponent>();
+        glm::vec3 camPos = camera->GetPosition();
 
         for (auto entity : meshView) {
-            auto [transform, mesh] = meshView.get<TransformComponent, MeshComponent>(entity);
-            if (mesh.Visible && mesh.Mesh && mesh.Material && mesh.Material->GetBlendState()) {
-                float distSq = glm::distance2(transform.Translation, cameraPos);
-                transparentMeshes.push_back({ entity, distSq });
-            }
+            auto& transform = meshView.get<TransformComponent>(entity);
+            auto& mesh = meshView.get<MeshComponent>(entity);
+
+            if (!mesh.Visible || !mesh.Mesh || !mesh.Material) continue;
+            if (!mesh.Material->GetBlendState()) continue;
+
+            float distSq = glm::distance2(transform.Translation, camPos);
+            transparentList.push_back({ entity, distSq });
         }
 
         // Sort back-to-front
-        std::sort(transparentMeshes.begin(), transparentMeshes.end(),
-            [](const TransparentMesh& a, const TransparentMesh& b) {
-                return a.DistanceSq > b.DistanceSq;
+        std::sort(transparentList.begin(), transparentList.end(),
+            [](const TransparentItem& a, const TransparentItem& b) {
+                return a.distanceSq > b.distanceSq;
             });
 
         // Render
-        for (const auto& tm : transparentMeshes) {
-            auto [transform, mesh] = meshView.get<TransformComponent, MeshComponent>(tm.Entity);
+        for (auto& item : transparentList) {
+            auto& transform = meshView.get<TransformComponent>(item.entity);
+            auto& mesh = meshView.get<MeshComponent>(item.entity);
+
             m_Renderer3D->DrawMesh(
                 mesh.Mesh.get(),
                 transform.GetTransform(),
@@ -207,57 +218,57 @@ namespace Yamen::ECS {
         }
     }
 
+    // =======================================================================
+    // 2D PASS
+    // =======================================================================
+
     void RenderSystem::Render2DPass(Scene* scene) {
         if (!m_Renderer2D) return;
 
-        // Find 2D camera or use default
-        // For now, we'll just use a default camera if none is found
-        // TODO: Implement proper 2D Camera Component lookup
-        // Initialize with default resolution (1280x720)
+        auto& reg = scene->Registry();
         Graphics::Camera2D camera2D(1280.0f, 720.0f);
-        
         m_Renderer2D->BeginScene(&camera2D);
 
-        // Render sprites sorted by layer and order
-        auto spriteView = scene->Registry().view<TransformComponent, SpriteComponent>();
-        
-        // Sort sprites by layer and order
-        std::vector<entt::entity> sortedSprites;
-        for (auto entity : spriteView) {
-            sortedSprites.push_back(entity);
-        }
-        
-        std::sort(sortedSprites.begin(), sortedSprites.end(),
-            [&](entt::entity a, entt::entity b) {
-                auto& spriteA = spriteView.get<SpriteComponent>(a);
-                auto& spriteB = spriteView.get<SpriteComponent>(b);
-                if (spriteA.SortingLayer != spriteB.SortingLayer)
-                    return spriteA.SortingLayer < spriteB.SortingLayer;
-                return spriteA.OrderInLayer < spriteB.OrderInLayer;
+        auto spriteView = reg.view<TransformComponent, SpriteComponent>();
+        std::vector<entt::entity> sorted;
+
+        for (auto entity : spriteView)
+            sorted.push_back(entity);
+
+        std::sort(sorted.begin(), sorted.end(), [&](entt::entity a, entt::entity b) {
+            auto& sa = spriteView.get<SpriteComponent>(a);
+            auto& sb = spriteView.get<SpriteComponent>(b);
+            if (sa.SortingLayer != sb.SortingLayer)
+                return sa.SortingLayer < sb.SortingLayer;
+            return sa.OrderInLayer < sb.OrderInLayer;
             });
 
-        // Render sorted sprites
-        for (auto entity : sortedSprites) {
-            auto [transform, sprite] = spriteView.get<TransformComponent, SpriteComponent>(entity);
-            
+        for (auto entity : sorted) {
+            auto& transform = spriteView.get<TransformComponent>(entity);
+            auto& sprite = spriteView.get<SpriteComponent>(entity);
+
+            glm::vec2 pos(transform.Translation.x, transform.Translation.y);
+            glm::vec2 scale(transform.Scale.x, transform.Scale.y);
+
             if (sprite.Texture) {
                 m_Renderer2D->DrawSprite(
                     sprite.Texture.get(),
-                    glm::vec2(transform.Translation.x, transform.Translation.y),
-                    glm::vec2(transform.Scale.x, transform.Scale.y),
-                    transform.Rotation.z, // 2D rotation usually around Z
+                    pos,
+                    scale,
+                    transform.Rotation.z,
                     sprite.Color
                 );
-            } else {
+            }
+            else {
                 m_Renderer2D->DrawQuad(
-                    glm::vec2(transform.Translation.x, transform.Translation.y),
-                    glm::vec2(transform.Scale.x, transform.Scale.y),
+                    pos,
+                    scale,
                     sprite.Color,
                     transform.Rotation.z
                 );
             }
         }
-        
+
         m_Renderer2D->EndScene();
     }
 

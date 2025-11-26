@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Client/IScene.h"
 #include "Graphics/Graphics.h"
 #include <memory>
 
@@ -11,30 +12,32 @@ namespace Yamen {
      * This class contains all test/demo code for the graphics system.
      * Enable/disable with ENABLE_DEMO_SCENE in Config.h
      */
-    class DemoScene {
+    class DemoScene : public IScene {
     public:
         DemoScene(Graphics::GraphicsDevice& device);
-        ~DemoScene();
+        ~DemoScene() override;
 
         /**
          * @brief Initialize demo resources
          */
-        bool Initialize();
+        bool Initialize() override;
 
         /**
          * @brief Update demo scene
          */
-        void Update(float deltaTime);
+        void Update(float deltaTime) override;
 
         /**
          * @brief Render demo scene
          */
-        void Render();
+        void Render() override;
 
         /**
          * @brief Render ImGui controls
          */
-        void RenderImGui();
+        void RenderImGui() override;
+
+        const char* GetName() const override { return "Legacy Demo"; }
 
         /**
          * @brief Get the 3D camera

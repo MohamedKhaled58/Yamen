@@ -6,6 +6,7 @@
 #include "Platform/Events/InputDispatcher.h"
 #include "Graphics/RHI/GraphicsDevice.h"
 #include "Graphics/RHI/SwapChain.h"
+#include "Client/EngineConfig.h"
 #include <memory>
 
 namespace Yamen::Client {
@@ -21,6 +22,13 @@ namespace Yamen::Client {
     public:
         Application();
         ~Application();
+
+        /**
+         * @brief Initialize the application with configuration
+         * @param config Engine configuration
+         * @return true if initialization succeeded
+         */
+        bool Initialize(const EngineConfig& config);
 
         /**
          * @brief Run the application
@@ -52,6 +60,16 @@ namespace Yamen::Client {
          */
         Platform::LayerStack& GetLayerStack() { return *m_LayerStack; }
 
+        /**
+         * @brief Get current configuration
+         */
+        const EngineConfig& GetConfig() const { return m_Config; }
+
+        /**
+         * @brief Get the global event dispatcher
+         */
+        Platform::EventDispatcher& GetEventDispatcher() { return m_EventDispatcher; }
+
     private:
         void OnEvent(Platform::Event& event);
 
@@ -62,6 +80,7 @@ namespace Yamen::Client {
         ImGuiLayer* m_ImGuiLayer = nullptr;
         Platform::EventDispatcher m_EventDispatcher;
         Platform::InputDispatcher m_InputDispatcher;
+        EngineConfig m_Config;
 
         static Application* s_Instance;
     };

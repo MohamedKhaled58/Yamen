@@ -1,31 +1,20 @@
 #pragma once
 
 #include "Platform/Layers/Layer.h"
-#include "Graphics/Texture/Texture2D.h"
-#include "Graphics/Renderer/Camera2D.h"
-#include "Client/Config.h"
-
-#if ENABLE_DEMO_SCENE
-#include "Client/DemoScene.h"
-#endif
-
-#if ENABLE_ECS_SCENE
-#include "Client/ECSScene.h"
-#endif
-
+#include "Client/SceneManager.h"
 #include <memory>
 
 namespace Yamen::Client {
 
     /**
-     * @brief Main game layer
+     * @brief Main game layer that manages scenes
      * 
-     * Handles game logic, rendering, and input.
+     * Owns the SceneManager and delegates to the active scene.
+     * Simplified from managing multiple scenes directly.
      */
     class GameLayer : public Platform::Layer {
     public:
         GameLayer();
-        ~GameLayer() override = default;
 
         void OnAttach() override;
         void OnDetach() override;
@@ -35,18 +24,7 @@ namespace Yamen::Client {
         void OnImGuiRender() override;
 
     private:
-        std::unique_ptr<Graphics::Camera2D> m_Camera;
-        std::unique_ptr<Graphics::Texture2D> m_TestTexture;
-        float m_CameraSpeed = 500.0f;
-
-#if ENABLE_DEMO_SCENE
-        // === DEMO SCENE (Can be disabled in Config.h) ===
-        std::unique_ptr<DemoScene> m_DemoScene;
-#endif
-
-#if ENABLE_ECS_SCENE
-        std::unique_ptr<ECSScene> m_ECSScene;
-#endif
+        std::unique_ptr<SceneManager> m_SceneManager;
     };
 
 } // namespace Yamen::Client
