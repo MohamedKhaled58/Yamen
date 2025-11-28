@@ -23,7 +23,8 @@ struct SkeletalAnimationComponent {
   bool isPlaying;      // Playback state
   bool loop;           // Loop animation
 
-  std::vector<glm::mat4> boneMatrices; // Current bone transformations
+  std::vector<glm::mat4> boneMatrices;        // Current bone transformations
+  std::vector<glm::mat4> inverseBindMatrices; // Inverse Bind Pose Matrices
 
   SkeletalAnimationComponent()
       : motion(nullptr), currentFrame(0.0f),

@@ -133,6 +133,9 @@ struct C3Phy {
   // Rendering flags
   bool shouldDraw;
 
+  // Inverse Bind Pose Matrices (calculated from Frame 0)
+  std::vector<glm::mat4> invBindMatrices;
+
   C3Phy()
       : blendCount(0), normalVertexCount(0), alphaVertexCount(0),
         normalTriCount(0), alphaTriCount(0), uvAnimStep(0.0f), textureRows(1),
@@ -181,37 +184,36 @@ public:
                                std::vector<glm::mat4> &outMatrices);
 
 private:
-  // Internal parsing functions
-  static bool ParseMotionChunk(const uint8_t *data, size_t &offset,
-                               size_t dataSize, C3Motion &motion);
-  static bool ParsePhysicsChunk(const uint8_t *data, size_t &offset,
-                                size_t dataSize, C3Phy &phy);
+    // Internal parsing functions — NOW SAFE with chunkEnd bounds
+    static bool ParseMotionChunk(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Motion& motion);
+    static bool ParsePhysicsChunk(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Phy& phy,
+        bool isPhy4 = false);
+    static bool ParseKeyframesKKEY(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Motion& motion);
+    static bool ParseKeyframesXKEY(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Motion& motion);
+    static bool ParseKeyframesZKEY(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Motion& motion);
+    static bool ParseKeyframesLegacy(const uint8_t* data, size_t& offset,
+        size_t chunkEnd, C3Motion& motion);
 
-  static bool ParseKeyframesKKEY(const uint8_t *data, size_t &offset,
-                                 C3Motion &motion);
-  static bool ParseKeyframesXKEY(const uint8_t *data, size_t &offset,
-                                 C3Motion &motion);
-  static bool ParseKeyframesZKEY(const uint8_t *data, size_t &offset,
-                                 C3Motion &motion);
-  static bool ParseKeyframesLegacy(const uint8_t *data, size_t &offset,
-                                   C3Motion &motion);
-
-  // Helper functions
-  template <typename T>
-  static bool Read(const uint8_t *data, size_t &offset, size_t dataSize,
-                   T &out) {
-    if (offset + sizeof(T) > dataSize)
-      return false;
-    memcpy(&out, data + offset, sizeof(T));
-    offset += sizeof(T);
-    return true;
-  }
-
-  static bool ReadString(const uint8_t *data, size_t &offset, size_t dataSize,
-                         std::string &out);
-  static bool ReadChunkHeader(const uint8_t *data, size_t &offset,
-                              size_t dataSize, char chunkID[4],
-                              uint32_t &chunkSize);
+    // Helper functions
+    template <typename T>
+    static bool Read(const uint8_t* data, size_t& offset, size_t dataSize,
+        T& out) {
+        if (offset + sizeof(T) > dataSize)
+            return false;
+        memcpy(&out, data + offset, sizeof(T));
+        offset += sizeof(T);
+        return true;
+    }
+    static bool ReadString(const uint8_t* data, size_t& offset, size_t dataSize,
+        std::string& out);
+    static bool ReadChunkHeader(const uint8_t* data, size_t& offset,
+        size_t dataSize, char chunkID[4],
+        uint32_t& chunkSize);
 };
 
 } // namespace Yamen::Assets

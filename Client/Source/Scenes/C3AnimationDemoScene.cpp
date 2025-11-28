@@ -29,26 +29,66 @@ bool C3AnimationDemoScene::Initialize() {
     return false;
   }
 
+  // // Define ghost models (different animation states)
+  // m_GhostModels = {
+  //     {entt::null, "Base Model",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/1.c3", false, nullptr},
+  //     {entt::null, "Standby",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/100.c3", false, nullptr},
+  //     {entt::null, "Rest",
+  //     "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/101.c3",
+  //      false, nullptr},
+  //     {entt::null, "Walk Left",
+  //          "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/101.c3", false,
+  //          nullptr},
+  //     {entt::null, "Walk Right",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/110.c3", false, nullptr},
+  //     {entt::null, "Walk Right",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/111.c3", false, nullptr},
+  //     {entt::null, "Run Left",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/120.c3", false, nullptr},
+  //     {entt::null, "Run Right",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/121.c3", false, nullptr},
+  //     {entt::null, "Attack",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/320.c3", false, nullptr},
+  //     {entt::null, "Unknown",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/330.c3", false,
+  //      nullptr},
+  //      {entt::null, "Unknown",
+  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/331.c3", false,
+  //      nullptr},
+  // {entt::null, "Unknown",
+  //                "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/340.c3", false,
+  //                nullptr},
+  //     {entt::null, "Unknown",
+  //                          "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/401.c3",
+  //                          false, nullptr},
+  //{
+  //         entt::null, "Unknown",
+  //         "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/402.c3", false,
+  //         nullptr}};
+
   // Define ghost models (different animation states)
   m_GhostModels = {
       {entt::null, "Base Model",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/1.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/1.c3", false, nullptr},
       {entt::null, "Standby",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/100.c3", false, nullptr},
-      {entt::null, "Rest", "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/101.c3",
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/100.c3", false, nullptr},
+      {entt::null, "Rest", "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3",
        false, nullptr},
       {entt::null, "Walk Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/110.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3", false, nullptr},
       {entt::null, "Walk Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/111.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/110.c3", false, nullptr},
+      {entt::null, "Walk Right",
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/111.c3", false, nullptr},
       {entt::null, "Run Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/120.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/120.c3", false, nullptr},
       {entt::null, "Run Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/121.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/121.c3", false, nullptr},
       {entt::null, "Attack",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/321.c3", false, nullptr},
-      {entt::null, "Unknown",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/140/331.c3", false, nullptr}};
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/350.c3", false, nullptr},
+  };
 
   // Load all models
   LoadAllModels();

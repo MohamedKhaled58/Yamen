@@ -31,6 +31,17 @@ void SkeletalAnimationSystem::Update(entt::registry &registry,
     // Interpolate bone matrices for current frame
     Assets::C3PhyLoader::InterpolateBones(*anim.motion, anim.currentFrame,
                                           anim.boneMatrices);
+
+    // Apply Inverse Bind Pose if available
+    // This transforms vertices from Model Space -> Bone Space -> Animated World
+    // Space
+    if (!anim.inverseBindMatrices.empty() &&
+        anim.inverseBindMatrices.size() == anim.boneMatrices.size()) {
+        for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
+            anim.boneMatrices[i] =
+                anim.inverseBindMatrices[i] * anim.boneMatrices[i];  // CORRECT!
+        }
+    }
   }
 }
 

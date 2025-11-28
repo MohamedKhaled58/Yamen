@@ -15,9 +15,9 @@ cbuffer CBPerObject : register(b0)
 
 cbuffer CBBoneMatrices : register(b1)
 {
-    // 70 bones * 3 vec4 per bone = 210 vec4
+    // 200 bones * 3 vec4 per bone = 600 vec4
     // Each bone uses 3 vec4 to represent a 3x4 transformation matrix
-    float4 c3_BoneMatrix[210];
+    float4 c3_BoneMatrix[600];
 };
 
 //=============================================================================

@@ -11,7 +11,6 @@
 #include <memory>
 #include <vector>
 
-
 namespace Yamen::Graphics {
 
 /**
@@ -22,7 +21,7 @@ namespace Yamen::Graphics {
  */
 class C3SkeletalRenderer {
 public:
-  static constexpr uint32_t MAX_BONES = 70;
+  static constexpr uint32_t MAX_BONES = 200;
   static constexpr uint32_t BONE_MATRIX_VEC4_COUNT =
       MAX_BONES * 3; // 3 vec4 per bone = 3x4 matrix
 

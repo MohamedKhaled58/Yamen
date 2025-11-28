@@ -115,8 +115,8 @@ namespace Yamen::Graphics {
             errorBlob->Release();
         }
 
-        YAMEN_CORE_TRACE("Shader compiled successfully: {} (entry: {}, target: {})", 
-            sourceName, entryPoint, target);
+        //YAMEN_CORE_TRACE("Shader compiled successfully: {} (entry: {}, target: {})", 
+            //sourceName, entryPoint, target);
 
         return result;
     }

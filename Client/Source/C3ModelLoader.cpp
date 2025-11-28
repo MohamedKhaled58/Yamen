@@ -33,6 +33,14 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
     animComp.loop = true;
     animComp.boneMatrices.resize(phy->motion->boneCount, glm::mat4(1.0f));
 
+    // Copy inverse bind matrices
+    if (!phy->invBindMatrices.empty()) {
+      animComp.inverseBindMatrices = phy->invBindMatrices;
+    } else {
+      animComp.inverseBindMatrices.resize(phy->motion->boneCount,
+                                          glm::mat4(1.0f));
+    }
+
     YAMEN_CORE_INFO("Loaded animated C3 model: {} ({} bones, {} frames)",
                     filepath, phy->motion->boneCount, phy->motion->frameCount);
   } else {
@@ -149,6 +157,16 @@ void C3ModelLoader::RenderModel(entt::entity entity, entt::registry &registry,
       rv.boneIndexWeight.w = v.boneWeights[1] * 255.0f;
 
       renderVertices.push_back(rv);
+
+      // Debug: Log first vertex data
+      if (renderVertices.size() == 1) {
+        YAMEN_CORE_INFO("Vertex 0: Pos=[{}, {}, {}] Indices=[{}, {}] "
+                        "Weights=[{}, {}] ShaderWeights=[{}, {}]",
+                        v.position.x, v.position.y, v.position.z,
+                        v.boneIndices[0], v.boneIndices[1], v.boneWeights[0],
+                        v.boneWeights[1], rv.boneIndexWeight.z,
+                        rv.boneIndexWeight.w);
+      }
     }
 
     if (renderVertices.empty()) {
