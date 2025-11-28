@@ -1,6 +1,6 @@
-// C3Sprite Shader - 2D sprite rendering with screen-space projection
+// C3Font Shader - Text rendering with alpha-based coloring
 // Converted from OpenGL GLSL to DirectX 11 HLSL
-// Original C3 engine shader for 2D sprites and billboards
+// Original C3 engine shader for bitmap font rendering
 
 //=============================================================================
 // Constant Buffers
@@ -18,7 +18,7 @@ cbuffer CBPerFrame : register(b0)
 
 struct VSInput
 {
-    float2 c3_Vertex : POSITION;      // 2D position in pixel coordinates
+    float4 c3_Vertex : POSITION;      // Position in pixel coordinates (uses vec4 in original)
     float4 c3_VertexColor : COLOR;
     float2 c3_TexCoord0 : TEXCOORD0;
 };
@@ -39,8 +39,6 @@ PSInput VSMain(VSInput input)
     PSInput output;
     
     // Convert pixel coordinates to NDC (Normalized Device Coordinates)
-    // OpenGL: x * pixelSize.x - 1.0, y * pixelSize.y + 1.0
-    // DirectX uses same coordinate system for this shader
     float2 vProjPos;
     vProjPos.x = input.c3_Vertex.x * c3_PixelSize.x - 1.0;
     vProjPos.y = input.c3_Vertex.y * c3_PixelSize.y + 1.0;
@@ -68,5 +66,8 @@ SamplerState sampler0 : register(s0);
 float4 PSMain(PSInput input) : SV_TARGET
 {
     float4 texColor = Tex0.Sample(sampler0, input.texCoord);
-    return texColor * input.color;
+    
+    // Font rendering: Use vertex color RGB, but alpha from texture
+    // This allows changing text color while preserving the font's alpha mask
+    return float4(input.color.xyz, texColor.w);
 }

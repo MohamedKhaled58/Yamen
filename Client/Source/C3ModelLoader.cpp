@@ -57,12 +57,14 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
     renderVertices.push_back(rv);
   }
 
-  meshComp.vertexBuffer =
-      std::make_shared<Graphics::Buffer>(device, Graphics::BufferType::Vertex);
-  meshComp.vertexBuffer->Create(
-      renderVertices.data(),
-      (uint32_t)(renderVertices.size() * sizeof(RenderVertex)),
-      sizeof(RenderVertex));
+  if (!renderVertices.empty()) {
+    meshComp.vertexBuffer = std::make_shared<Graphics::Buffer>(
+        device, Graphics::BufferType::Vertex);
+    meshComp.vertexBuffer->Create(
+        renderVertices.data(),
+        (uint32_t)(renderVertices.size() * sizeof(RenderVertex)),
+        sizeof(RenderVertex));
+  }
 
   // Create Index Buffer
   if (!phy->indices.empty()) {

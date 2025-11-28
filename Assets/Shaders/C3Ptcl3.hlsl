@@ -1,15 +1,14 @@
-// C3Sprite Shader - 2D sprite rendering with screen-space projection
+// C3Ptcl3 Shader - Advanced particle rendering with color modulation
 // Converted from OpenGL GLSL to DirectX 11 HLSL
-// Original C3 engine shader for 2D sprites and billboards
+// Original C3 engine shader for advanced particle effects
 
 //=============================================================================
 // Constant Buffers
 //=============================================================================
 
-cbuffer CBPerFrame : register(b0)
+cbuffer CBPerObject : register(b0)
 {
-    float2 c3_PixelSize;        // (2/screenWidth, -2/screenHeight)
-    float2x2 c3_RotateImageMatrix; // 2x2 rotation matrix
+    float4x4 c3_ModelViewProj;
 };
 
 //=============================================================================
@@ -18,7 +17,7 @@ cbuffer CBPerFrame : register(b0)
 
 struct VSInput
 {
-    float2 c3_Vertex : POSITION;      // 2D position in pixel coordinates
+    float4 c3_Vertex : POSITION;
     float4 c3_VertexColor : COLOR;
     float2 c3_TexCoord0 : TEXCOORD0;
 };
@@ -38,20 +37,10 @@ PSInput VSMain(VSInput input)
 {
     PSInput output;
     
-    // Convert pixel coordinates to NDC (Normalized Device Coordinates)
-    // OpenGL: x * pixelSize.x - 1.0, y * pixelSize.y + 1.0
-    // DirectX uses same coordinate system for this shader
-    float2 vProjPos;
-    vProjPos.x = input.c3_Vertex.x * c3_PixelSize.x - 1.0;
-    vProjPos.y = input.c3_Vertex.y * c3_PixelSize.y + 1.0;
+    // Full MVP transformation
+    output.position = mul(c3_ModelViewProj, input.c3_Vertex);
     
-    // Apply rotation matrix
-    float2 rotated = mul(c3_RotateImageMatrix, vProjPos);
-    
-    // Output position (z=0, w=1 for 2D rendering)
-    output.position = float4(rotated, 0.0, 1.0);
-    
-    // Pass through texture coordinates and color
+    // Pass through texture coordinates and vertex color
     output.texCoord = input.c3_TexCoord0;
     output.color = input.c3_VertexColor;
     

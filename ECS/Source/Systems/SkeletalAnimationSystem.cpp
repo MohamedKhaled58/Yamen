@@ -38,7 +38,10 @@ void SkeletalAnimationSystem::Update(entt::registry &registry,
     if (!anim.inverseBindMatrices.empty() &&
         anim.inverseBindMatrices.size() == anim.boneMatrices.size()) {
       for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
-          anim.boneMatrices[i] = anim.inverseBindMatrices[i] * anim.boneMatrices[i];
+        // GLM is column-major.
+        // Standard skinning: Final = Anim * InvBind
+        anim.boneMatrices[i] =
+            anim.boneMatrices[i] * anim.inverseBindMatrices[i];
       }
     }
   }

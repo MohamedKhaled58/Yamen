@@ -1,14 +1,16 @@
-// Basic 3D Shader with Blinn-Phong Lighting
+// Basic3D.hlsl - Standard 3D shader with lighting
+
+// Constant Buffers
 cbuffer PerFrame : register(b0)
 {
-    matrix ViewProjection;
+    float4x4 ViewProjection;
     float3 CameraPosition;
     float _pad0;
 };
 
 cbuffer PerObject : register(b1)
 {
-    matrix World;
+    float4x4 World;
     float4 MaterialColor;
 };
 
@@ -22,64 +24,68 @@ cbuffer Lighting : register(b2)
     float _pad2;
 };
 
+// Input/Output structures
 struct VSInput
 {
-    float3 Position : POSITION;
-    float3 Normal : NORMAL;
-    float2 TexCoord : TEXCOORD;
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 texCoord : TEXCOORD0;
 };
 
 struct PSInput
 {
-    float4 Position : SV_POSITION;
-    float3 WorldPos : POSITION;
-    float3 Normal : NORMAL;
-    float2 TexCoord : TEXCOORD;
+    float4 position : SV_POSITION;
+    float3 worldPos : POSITION;
+    float3 normal : NORMAL;
+    float2 texCoord : TEXCOORD0;
 };
-
-Texture2D DiffuseTexture : register(t0);
-SamplerState DiffuseSampler : register(s0);
 
 // Vertex Shader
 PSInput VSMain(VSInput input)
 {
     PSInput output;
     
-    float4 worldPos = mul(float4(input.Position, 1.0f), World);
-    output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, ViewProjection);
-    output.Normal = normalize(mul(input.Normal, (float3x3)World));
-    output.TexCoord = input.TexCoord;
+    // Transform position to world space
+    float4 worldPos = mul(World, float4(input.position, 1.0f));
+    output.worldPos = worldPos.xyz;
+    
+    // Transform position to clip space
+    output.position = mul(ViewProjection, worldPos);
+    
+    // Transform normal to world space (assuming uniform scaling)
+    output.normal = normalize(mul((float3x3)World, input.normal));
+    
+    output.texCoord = input.texCoord;
     
     return output;
 }
 
 // Pixel Shader
+Texture2D Tex0 : register(t0);
+SamplerState Sampler0 : register(s0);
+
 float4 PSMain(PSInput input) : SV_TARGET
 {
     // Sample texture
-    float4 texColor = DiffuseTexture.Sample(DiffuseSampler, input.TexCoord);
-    float4 baseColor = texColor * MaterialColor;
+    float4 texColor = Tex0.Sample(Sampler0, input.texCoord);
     
-    // Normalize vectors
-    float3 normal = normalize(input.Normal);
+    // Ambient lighting
+    float3 ambient = AmbientColor * texColor.rgb;
+    
+    // Diffuse lighting
+    float3 norm = normalize(input.normal);
     float3 lightDir = normalize(-LightDirection);
-    float3 viewDir = normalize(CameraPosition - input.WorldPos);
-    float3 halfDir = normalize(lightDir + viewDir);
+    float diff = max(dot(norm, lightDir), 0.0f);
+    float3 diffuse = diff * LightColor * LightIntensity * texColor.rgb;
     
-    // Ambient
-    float3 ambient = AmbientColor * baseColor.rgb;
-    
-    // Diffuse (Lambert)
-    float diff = max(dot(normal, lightDir), 0.0f);
-    float3 diffuse = diff * LightColor * LightIntensity * baseColor.rgb;
-    
-    // Specular (Blinn-Phong)
-    float spec = pow(max(dot(normal, halfDir), 0.0f), 32.0f);
-    float3 specular = spec * LightColor * LightIntensity * 0.5f;
+    // Specular lighting (simple Blinn-Phong)
+    float3 viewDir = normalize(CameraPosition - input.worldPos);
+    float3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(norm, halfwayDir), 0.0f), 32.0f);
+    float3 specular = spec * LightColor * LightIntensity * 0.5f; // 0.5 specular strength
     
     // Combine
-    float3 finalColor = ambient + diffuse + specular;
+    float3 finalColor = (ambient + diffuse + specular) * MaterialColor.rgb;
     
-    return float4(finalColor, baseColor.a);
+    return float4(finalColor, texColor.a * MaterialColor.a);
 }

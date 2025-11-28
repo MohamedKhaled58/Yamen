@@ -48,8 +48,9 @@ PSInput VSMain(VSInput input)
     PSInput output;
     
     // Extract bone indices (multiply by 3 for matrix offset)
-    int nIndex1 = int(input.c3_BoneIndexWeight.x * 3.0);
-    int nIndex2 = int(input.c3_BoneIndexWeight.y * 3.0);
+    // Add 0.5 for rounding safety (float precision issues)
+    int nIndex1 = int(input.c3_BoneIndexWeight.x * 3.0 + 0.5);
+    int nIndex2 = int(input.c3_BoneIndexWeight.y * 3.0 + 0.5);
     
     // Extract bone weights (already normalized 0.0-1.0)
     float fWeight1 = input.c3_BoneIndexWeight.z;

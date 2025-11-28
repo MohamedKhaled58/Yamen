@@ -92,7 +92,7 @@ bool C3SkeletalRenderer::Initialize() {
   // Create sampler
   m_Sampler = std::make_unique<Sampler>(m_Device);
   if (!m_Sampler->Create(SamplerFilter::Point, SamplerAddressMode::Wrap, 1)) {
-      YAMEN_CORE_ERROR("Failed to create sampler");
+    YAMEN_CORE_ERROR("Failed to create sampler");
     return false;
   }
 
@@ -114,31 +114,29 @@ void C3SkeletalRenderer::SetBoneMatrices(const glm::vec4 *bones,
   std::memcpy(m_BoneData.c3_BoneMatrix, bones, vec4Count * sizeof(glm::vec4));
 }
 
-void C3SkeletalRenderer::SetBoneMatricesFromMat4(const glm::mat4* matrices, uint32_t count) {
-    if (count > MAX_BONES) {
-        //YAMEN_CORE_WARN("SetBoneMatricesFromMat4: clamping bone count {} → {}", count, MAX_BONES);
-        count = MAX_BONES;
-    }
+void C3SkeletalRenderer::SetBoneMatricesFromMat4(const glm::mat4 *matrices,
+                                                 uint32_t count) {
+  if (count > MAX_BONES) {
+    count = MAX_BONES;
+  }
 
-    for (uint32_t i = 0; i < count; ++i) {
-        // CRITICAL: Transpose because GLM is column-major, HLSL is row-major
-        glm::mat4 transposed = glm::transpose(matrices[i]);
+  for (uint32_t i = 0; i < count; ++i) {
+    // THIS LINE WAS MISSING THE TRANSPOSE — THIS IS THE BUG
+    glm::mat4 transposed = glm::transpose(matrices[i]);
 
-        uint32_t offset = i * 3;
+    uint32_t offset = i * 3;
 
-        // Now extract the 3 ROWS of the transposed matrix → this is what C3 expects
-        m_BoneData.c3_BoneMatrix[offset + 0] = glm::vec4(transposed[0]);
-        m_BoneData.c3_BoneMatrix[offset + 1] = glm::vec4(transposed[1]);
-        m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(transposed[2]);
-        // Row 3 (0,0,0,1) is ignored in 3x4 skinning — perfect
-    }
+    m_BoneData.c3_BoneMatrix[offset + 0] = glm::vec4(transposed[0]);
+    m_BoneData.c3_BoneMatrix[offset + 1] = glm::vec4(transposed[1]);
+    m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(transposed[2]);
+  }
 }
 void C3SkeletalRenderer::SetUVAnimationOffset(const glm::vec2 &offset) {
   m_PerObjectData.c3_UVAnimStep = offset;
 }
 
-void C3SkeletalRenderer::SetModelViewProj(const glm::mat4& mvp) {
-    m_PerObjectData.c3_ModelViewProj = glm::transpose(mvp);  // ← transpose here too!
+void C3SkeletalRenderer::SetModelViewProj(const glm::mat4 &mvp) {
+  m_PerObjectData.c3_ModelViewProj = glm::transpose(mvp);
 }
 
 void C3SkeletalRenderer::SetTexture(Texture2D *texture) {
