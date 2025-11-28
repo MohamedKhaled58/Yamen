@@ -166,24 +166,21 @@ void C3AnimationDemoScene::Update(float deltaTime) {
 }
 
 void C3AnimationDemoScene::Render() {
-  if (!m_SkeletalRenderer || m_CurrentModelIndex < 0 ||
-      m_CurrentModelIndex >= m_GhostModels.size()) {
-    return;
-  }
-
-  auto &currentModel = m_GhostModels[m_CurrentModelIndex];
-  if (!currentModel.isLoaded || currentModel.entity == entt::null) {
+  if (!m_SkeletalRenderer || m_BaseEntity == entt::null) {
     return;
   }
 
   // Calculate MVP matrix
   glm::mat4 model = glm::mat4(1.0f);
+  // Apply scale
+  model = glm::scale(model, glm::vec3(m_ModelScale));
+
   glm::mat4 view = m_Camera->GetViewMatrix();
   glm::mat4 projection = m_Camera->GetProjectionMatrix();
   glm::mat4 mvp = projection * view * model;
 
-  // Render the current ghost model
-  Client::C3ModelLoader::RenderModel(currentModel.entity, m_Registry,
+  // Render the base model (which has the active animation applied)
+  Client::C3ModelLoader::RenderModel(m_BaseEntity, m_Registry,
                                      *m_SkeletalRenderer, mvp);
 }
 
@@ -223,28 +220,25 @@ void C3AnimationDemoScene::RenderImGui() {
   ImGui::SliderFloat("Speed (FPS)", &m_AnimationSpeed, 1.0f, 120.0f);
 
   // Apply speed to current animation
-  if (m_CurrentModelIndex >= 0 && m_CurrentModelIndex < m_GhostModels.size()) {
-    auto &model = m_GhostModels[m_CurrentModelIndex];
-    if (model.isLoaded && model.entity != entt::null) {
-      auto *anim =
-          m_Registry.try_get<ECS::SkeletalAnimationComponent>(model.entity);
-      if (anim) {
-        ECS::SkeletalAnimationSystem::SetSpeed(*anim, m_AnimationSpeed);
+  if (m_BaseEntity != entt::null) {
+    auto *anim =
+        m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
+    if (anim) {
+      ECS::SkeletalAnimationSystem::SetSpeed(*anim, m_AnimationSpeed);
 
-        // Show animation info
-        ImGui::Separator();
-        ImGui::Text("Current Animation:");
-        ImGui::Text("  Frame: %.1f / %d", anim->currentFrame,
-                    anim->motion ? anim->motion->frameCount : 0);
-        ImGui::Text("  Bones: %d", anim->motion ? anim->motion->boneCount : 0);
-        ImGui::Text("  Keyframes: %d",
-                    anim->motion ? anim->motion->keyframeCount : 0);
+      // Show animation info
+      ImGui::Separator();
+      ImGui::Text("Current Animation:");
+      ImGui::Text("  Frame: %.1f / %d", anim->currentFrame,
+                  anim->motion ? anim->motion->frameCount : 0);
+      ImGui::Text("  Bones: %d", anim->motion ? anim->motion->boneCount : 0);
+      ImGui::Text("  Keyframes: %d",
+                  anim->motion ? anim->motion->keyframeCount : 0);
 
-        if (anim->motion) {
-          const char *formatNames[] = {"Legacy", "KKEY", "XKEY", "ZKEY"};
-          int formatIndex = static_cast<int>(anim->motion->format);
-          ImGui::Text("  Format: %s", formatNames[formatIndex]);
-        }
+      if (anim->motion) {
+        const char *formatNames[] = {"Legacy", "KKEY", "XKEY", "ZKEY"};
+        int formatIndex = static_cast<int>(anim->motion->format);
+        ImGui::Text("  Format: %s", formatNames[formatIndex]);
       }
     }
   }
@@ -268,69 +262,54 @@ void C3AnimationDemoScene::RenderImGui() {
   ImGui::End();
 }
 
-void C3AnimationDemoScene::LoadAllModels() {
-  YAMEN_CORE_INFO("Loading {} ghost models...", m_GhostModels.size());
-
-  for (auto &model : m_GhostModels) {
-    model.entity = Client::C3ModelLoader::LoadModel(m_Registry, model.filepath);
-    model.isLoaded = (model.entity != entt::null);
-
-    if (model.isLoaded) {
-      YAMEN_CORE_INFO("  ✓ Loaded: {}", model.name);
-
-      // Set animation to loop and pause initially
-      auto *anim =
-          m_Registry.try_get<ECS::SkeletalAnimationComponent>(model.entity);
-      if (anim) {
-        anim->loop = true;
-        anim->isPlaying = false;
-        anim->playbackSpeed = m_AnimationSpeed;
-      }
-    } else {
-      YAMEN_CORE_ERROR("  ✗ Failed: {}", model.name);
-    }
-  }
-}
-
 void C3AnimationDemoScene::UnloadAllModels() {
+  // Unload base model
+  if (m_BaseEntity != entt::null) {
+    Client::C3ModelLoader::UnloadModel(m_BaseEntity, m_Registry);
+    m_BaseEntity = entt::null;
+  }
+
+  // Unload other models
   for (auto &model : m_GhostModels) {
-    if (model.isLoaded && model.entity != entt::null) {
+    if (model.entity != entt::null && model.entity != m_BaseEntity) {
       Client::C3ModelLoader::UnloadModel(model.entity, m_Registry);
-      model.entity = entt::null;
-      model.isLoaded = false;
     }
+    model.entity = entt::null;
+    model.isLoaded = false;
+    model.motion = nullptr;
   }
 }
 
 void C3AnimationDemoScene::SwitchToModel(int index) {
-  if (index < 0 || index >= m_GhostModels.size()) {
+  if (index < 0 || index >= m_GhostModels.size())
     return;
-  }
 
-  // Pause all animations
-  for (auto &model : m_GhostModels) {
-    if (model.isLoaded && model.entity != entt::null) {
-      auto *anim =
-          m_Registry.try_get<ECS::SkeletalAnimationComponent>(model.entity);
-      if (anim) {
-        ECS::SkeletalAnimationSystem::Stop(*anim);
+  if (!m_GhostModels[index].isLoaded)
+    return;
+
+  m_CurrentModelIndex = index;
+
+  // Apply the selected motion to the Base Entity
+  if (m_BaseEntity != entt::null) {
+    auto *animComp =
+        m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
+    if (animComp) {
+      Assets::C3Motion *newMotion = m_GhostModels[index].motion;
+      if (newMotion) {
+        // Only switch if different motion or forcing reset
+        if (animComp->motion != newMotion) {
+          animComp->motion = newMotion;
+          animComp->currentFrame = 0.0f; // Reset animation
+          // Resize bone matrices if needed (though should be same skeleton)
+          if (animComp->boneMatrices.size() != newMotion->boneCount) {
+            animComp->boneMatrices.resize(newMotion->boneCount,
+                                          glm::mat4(1.0f));
+          }
+          YAMEN_CORE_INFO("Switched to animation: {}",
+                          m_GhostModels[index].name);
+        }
       }
     }
-  }
-
-  // Switch to new model
-  m_CurrentModelIndex = index;
-  auto &newModel = m_GhostModels[index];
-
-  if (newModel.isLoaded && newModel.entity != entt::null) {
-    auto *anim =
-        m_Registry.try_get<ECS::SkeletalAnimationComponent>(newModel.entity);
-    if (anim) {
-      ECS::SkeletalAnimationSystem::Play(*anim, true);
-      ECS::SkeletalAnimationSystem::SetSpeed(*anim, m_AnimationSpeed);
-    }
-
-    YAMEN_CORE_INFO("Switched to: {}", newModel.name);
   }
 }
 
