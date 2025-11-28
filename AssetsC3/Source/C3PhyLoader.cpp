@@ -30,6 +30,7 @@ namespace Yamen {
         bool C3PhyLoader::LoadFromMemory(const uint8_t* data, size_t size,
             C3Phy& outPhy) {
             size_t offset = 0;
+            bool firstMotionLoaded = false;  // Track if we\'ve loaded the main skeleton
 
             // Check for MAXFILE header (3D Studio Max export format)
             // Format: "MAXFILE C3 00001" (16 bytes) + Chunks
@@ -57,13 +58,22 @@ namespace Yamen {
 
                 // Process chunk based on ID
                 if (memcmp(chunkID, "MOTN", 4) == 0 || memcmp(chunkID, "MOTI", 4) == 0) {
-                    YAMEN_CORE_INFO("Found {} chunk, size: {} bytes", std::string(chunkID, 4), chunkSize);
-                    if (!outPhy.motion) {
-                        outPhy.motion = new C3Motion();
-                    }
-                    if (!ParseMotionChunk(data, offset, chunkEnd, *outPhy.motion)) {
-                        YAMEN_CORE_ERROR("Failed to parse motion chunk");
-                        return false;
+                    if (!firstMotionLoaded) {
+                        // Load the first MOTI chunk (main skeleton with 90 bones)
+                        YAMEN_CORE_INFO("Found {} chunk, size: {} bytes", std::string(chunkID, 4), chunkSize);
+                        if (!outPhy.motion) {
+                            outPhy.motion = new C3Motion();
+                        }
+                        if (!ParseMotionChunk(data, offset, chunkEnd, *outPhy.motion)) {
+                            YAMEN_CORE_ERROR("Failed to parse motion chunk");
+                            return false;
+                        }
+                        firstMotionLoaded = true;
+                    } else {
+                        // Skip subsequent MOTI chunks (accessories with 1 bone each)
+                        YAMEN_CORE_INFO("Skipping additional {} chunk (already loaded {} bones)",
+                            std::string(chunkID, 4), outPhy.motion->boneCount);
+                        offset = chunkEnd;
                     }
                 }
                 else if (memcmp(chunkID, "PHYS", 4) == 0 ||
