@@ -48,6 +48,7 @@ namespace Yamen {
         // Yaw 90 degrees to look at +Z (where objects are), Pitch -15 to look slightly down
         m_Camera3D->SetRotation(glm::vec3(glm::radians(-15.0f), glm::radians(90.0f), 0.0f));
 
+
         // Create test meshes
         CreateTestMeshes();
 

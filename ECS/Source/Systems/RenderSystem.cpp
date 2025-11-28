@@ -90,12 +90,13 @@ namespace Yamen::ECS {
     void RenderSystem::RenderShadowPass(Scene* scene, Graphics::Camera3D* camera) {
         auto& reg = scene->Registry();
 
+        // Find a directional light for shadows
         Graphics::Light* shadowLight = nullptr;
-
-        auto lightView = reg.view<TransformComponent, LightComponent>();
+        auto lightView = reg.view<LightComponent>();
         for (auto entity : lightView) {
             auto& lightComp = lightView.get<LightComponent>(entity);
-            if (lightComp.Active && lightComp.CastShadows &&
+            if (lightComp.Active && 
+                lightComp.CastShadows && 
                 lightComp.LightData.type == Graphics::LightType::Directional) {
                 shadowLight = &lightComp.LightData;
                 break;
@@ -106,17 +107,19 @@ namespace Yamen::ECS {
 
         m_Renderer3D->BeginShadowPass(m_ShadowMap.get(), shadowLight);
 
+        // OPTIMIZATION: Only render objects that cast shadows
         auto meshView = reg.view<TransformComponent, MeshComponent>();
         for (auto entity : meshView) {
             auto& transform = meshView.get<TransformComponent>(entity);
             auto& mesh = meshView.get<MeshComponent>(entity);
 
-            if (mesh.Visible && mesh.CastShadows && mesh.Mesh) {
-                m_Renderer3D->DrawMeshWithSubMeshes(
-                    mesh.Mesh.get(),
-                    transform.GetTransform()
-				);
-            }
+            // Skip non-visible, non-shadow-casting, or null meshes
+            if (!mesh.Visible || !mesh.CastShadows || !mesh.Mesh) continue;
+
+            m_Renderer3D->DrawMeshWithSubMeshes(
+                mesh.Mesh.get(),
+                transform.GetTransform()
+			);
         }
 
         m_Renderer3D->EndShadowPass();
@@ -152,19 +155,42 @@ namespace Yamen::ECS {
         if (m_ShadowsEnabled && m_ShadowMap)
             m_ShadowMap->BindSRV(1);
 
-        // Render meshes
+        // OPTIMIZATION: Batch by material to reduce state changes
+        struct MeshRenderData {
+            entt::entity entity;
+            Graphics::Mesh* mesh;
+            Graphics::Material* material;
+            glm::mat4 transform;
+        };
+        
+        std::vector<MeshRenderData> renderQueue;
+        renderQueue.reserve(200); // Pre-allocate for typical scene size
+        
+        // Collect all visible meshes
         auto meshView = reg.view<TransformComponent, MeshComponent>();
         for (auto entity : meshView) {
             auto& transform = meshView.get<TransformComponent>(entity);
             auto& mesh = meshView.get<MeshComponent>(entity);
 
             if (!mesh.Visible || !mesh.Mesh) continue;
-
-            m_Renderer3D->DrawMesh(
+            
+            renderQueue.push_back({
+                entity,
                 mesh.Mesh.get(),
-                transform.GetTransform(),
-                mesh.Material.get()
-            );
+                mesh.Material.get(),
+                transform.GetTransform()
+            });
+        }
+        
+        // Sort by material pointer to batch same materials together
+        std::sort(renderQueue.begin(), renderQueue.end(),
+            [](const MeshRenderData& a, const MeshRenderData& b) {
+                return a.material < b.material;
+            });
+        
+        // Render batched meshes
+        for (const auto& data : renderQueue) {
+            m_Renderer3D->DrawMesh(data.mesh, data.transform, data.material);
         }
 
         m_Renderer3D->EndScene();

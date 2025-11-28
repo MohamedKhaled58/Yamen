@@ -30,6 +30,10 @@ bld/
 [Ll]ogs/
 Scripts/
 LookAt/
+Assets/
+GUIDE/
+DOCS/
+
 # Compiled files
 *.obj
 *.pdb

@@ -46,8 +46,12 @@ namespace Yamen::ECS {
         Graphics::Renderer3D* m_Renderer3D;
         Graphics::Renderer2D* m_Renderer2D;
         
-        bool m_ShadowsEnabled = true;
         std::unique_ptr<Graphics::ShadowMap> m_ShadowMap;
+        bool m_ShadowsEnabled;
+        
+        // Performance tracking
+        int m_DrawCallsThisFrame = 0;
+        float m_PerfLogTimer = 0.0f;
     };
 
 } // namespace Yamen::ECS

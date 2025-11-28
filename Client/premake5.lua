@@ -40,7 +40,8 @@ project "Client"
         "AssetsC3",
         "World",
         "ImGui",
-        "ImGuizmo"
+        "ImGuizmo",
+        "fmt"
     }
     
     filter "system:windows"
@@ -48,7 +49,8 @@ project "Client"
         defines {
             "PLATFORM_WINDOWS",
             "WIN32_LEAN_AND_MEAN",
-            "NOMINMAX"
+            "NOMINMAX",
+            "SPDLOG_FMT_EXTERNAL"
         }
     
     filter "configurations:Debug"

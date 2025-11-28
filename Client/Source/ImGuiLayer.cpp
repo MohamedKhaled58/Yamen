@@ -3,6 +3,7 @@
 #include <Core/Logging/Logger.h>
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx11.h>
 
@@ -91,6 +92,7 @@ namespace Yamen::Client {
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
+        ImGuizmo::BeginFrame();
     }
 
     void ImGuiLayer::End() {

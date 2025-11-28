@@ -1,3 +1,42 @@
+
+-- fmt Project (for spdlog external fmt support)
+project "fmt"
+    kind "StaticLib"
+    language "C++"
+    cppdialect "C++17"
+    
+    targetdir ("../bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("../bin-int/" .. outputdir .. "/%{prj.name}")
+    
+    files {
+        "fmt/include/fmt/*.h",
+        "fmt/src/format.cc",
+        "fmt/src/os.cc"
+    }
+    
+    includedirs {
+        "fmt/include"
+    }
+    
+    filter "system:windows"
+        systemversion "latest"
+        defines {
+            "WIN32_LEAN_AND_MEAN",
+            "NOMINMAX"
+        }
+    
+    filter "configurations:Debug"
+        runtime "Debug"
+        symbols "on"
+    
+    filter "configurations:Release"
+        runtime "Release"
+        optimize "on"
+    
+    filter "configurations:Dist"
+        runtime "Release"
+        optimize "full"
+
 project "ImGui"
     kind "StaticLib"
     language "C++"
@@ -91,3 +130,4 @@ project "ImGuizmo"
     filter "configurations:Dist"
         runtime "Release"
         optimize "full"
+

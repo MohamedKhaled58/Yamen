@@ -76,7 +76,8 @@ namespace Yamen {
         
         auto& cameraTransform = cameraEntity.GetComponent<ECS::TransformComponent>();
         cameraTransform.Translation = glm::vec3(0.0f, 10.0f, -20.0f);
-        cameraTransform.Rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        // Rotate 90 degrees around Y to face +Z (since 0 degrees is +X in CameraController)
+        cameraTransform.Rotation = glm::quat(glm::vec3(0.0f, glm::radians(90.0f), 0.0f));
         
         auto& script = cameraEntity.AddComponent<ECS::NativeScriptComponent>();
         script.Bind<Client::CameraController>();
@@ -93,6 +94,12 @@ namespace Yamen {
         );
         lightComp.Active = true;
         lightComp.CastShadows = false;
+
+        // Set transform rotation to match light direction
+        auto& lightTrans = lightEntity.GetComponent<ECS::TransformComponent>();
+        // Look at direction: from (0,0,0) to direction
+        glm::vec3 direction = glm::normalize(glm::vec3(-0.3f, -1.0f, -0.3f));
+        lightTrans.Rotation = glm::quatLookAt(direction, glm::vec3(0.0f, 1.0f, 0.0f));
 
         YAMEN_CORE_INFO("ECS Scene Initialized with GizmoSystem");
         return true;
@@ -224,11 +231,12 @@ namespace Yamen {
         auto* gizmoSystem = m_Scene->GetSystem<ECS::GizmoSystem>();
 
         // Scene Hierarchy
-        ImGui::Begin("Scene Hierarchy");
+        ImGui::Begin("Scene Hierarchy", nullptr, ImGuiWindowFlags_NoCollapse);
         ImGui::TextColored(ImVec4(1,1,0,1), "CONTROLS:");
         ImGui::Text("WASD = Move | RMB+Mouse = Look");
         ImGui::Text("Space = Up | Ctrl = Down | Shift = Fast");
         ImGui::Separator();
+        
         
         if (gizmoSystem) {
             ImGui::TextColored(ImVec4(0,1,1,1), "GIZMO MODES:");
@@ -237,6 +245,15 @@ namespace Yamen {
             int currentMode = (gizmoSystem->GetOperation() == ImGuizmo::TRANSLATE) ? 0 : 
                              (gizmoSystem->GetOperation() == ImGuizmo::ROTATE) ? 1 : 2;
             ImGui::Text("Current: %s", modeNames[currentMode]);
+            
+            // Show selected entity
+            if (m_SelectedEntity != entt::null) {
+                auto& selectedTag = m_Scene->Registry().get<ECS::TagComponent>(m_SelectedEntity);
+                ImGui::TextColored(ImVec4(1,1,0,1), "Selected: %s", selectedTag.Tag.c_str());
+            } else {
+                ImGui::TextColored(ImVec4(0.5f,0.5f,0.5f,1), "No entity selected");
+            }
+            
             ImGui::Separator();
         }
         
@@ -286,7 +303,7 @@ namespace Yamen {
         ImGui::End();
 
         // Inspector
-        ImGui::Begin("Inspector");
+        ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoCollapse);
         if (m_SelectedEntity != entt::null) {
             auto& registry = m_Scene->Registry();
 
@@ -400,7 +417,7 @@ namespace Yamen {
         ImGui::End();
 
         // System Settings
-        ImGui::Begin("System Settings");
+        ImGui::Begin("System Settings", nullptr, ImGuiWindowFlags_NoCollapse);
         
         if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto* physicsSystem = m_Scene->GetSystem<ECS::PhysicsSystem>();
@@ -410,27 +427,49 @@ namespace Yamen {
             }
         }
         
-        if (gizmoSystem && ImGui::CollapsingHeader("Gizmo Settings")) {
+        // Gizmo Controls - NEW: Comprehensive control panel
+        if (gizmoSystem && ImGui::CollapsingHeader("Gizmo Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
+            // Operation Mode (Translate/Rotate/Scale)
+            const char* operations[] = { "Translate (W)", "Rotate (E)", "Scale (R)" };
+            int currentOp = (gizmoSystem->GetOperation() == ImGuizmo::TRANSLATE) ? 0 :
+                           (gizmoSystem->GetOperation() == ImGuizmo::ROTATE) ? 1 : 2;
+            
+            if (ImGui::Combo("Operation", &currentOp, operations, 3)) {
+                if (currentOp == 0) gizmoSystem->SetOperation(ImGuizmo::TRANSLATE);
+                else if (currentOp == 1) gizmoSystem->SetOperation(ImGuizmo::ROTATE);
+                else gizmoSystem->SetOperation(ImGuizmo::SCALE);
+            }
+            
+            // Space Mode (World/Local) - CRITICAL FIX
+            const char* spaces[] = { "World", "Local" };
+            int currentSpace = (gizmoSystem->GetMode() == ImGuizmo::WORLD) ? 0 : 1;
+            
+            if (ImGui::Combo("Space", &currentSpace, spaces, 2)) {
+                gizmoSystem->SetMode((currentSpace == 0) ? ImGuizmo::WORLD : ImGuizmo::LOCAL);
+            }
+            
+            ImGui::Separator();
+            
+            // Snap Settings
             bool useSnap = gizmoSystem->IsSnapEnabled();
-            if (ImGui::Checkbox("Use Snap", &useSnap)) {
+            if (ImGui::Checkbox("Enable Snap", &useSnap)) {
                 gizmoSystem->SetSnapEnabled(useSnap);
             }
             
             if (useSnap) {
-                float snap[3];
-                // Get current snap values (would need getter in GizmoSystem)
-                ImGui::DragFloat3("Snap Values", snap, 0.1f, 0.1f, 10.0f);
-                gizmoSystem->SetSnapValues(snap[0], snap[1], snap[2]);
-            }
-            
-            const char* modeStrings[] = { "World", "Local" };
-            int currentModeIdx = (gizmoSystem->GetMode() == ImGuizmo::WORLD) ? 0 : 1;
-            if (ImGui::Combo("Gizmo Space", &currentModeIdx, modeStrings, 2)) {
-                gizmoSystem->SetMode((currentModeIdx == 0) ? ImGuizmo::WORLD : ImGuizmo::LOCAL);
+                static float snap[3] = {1.0f, 1.0f, 1.0f};
+                if (ImGui::DragFloat3("Snap Values", snap, 0.1f, 0.1f, 10.0f)) {
+                    gizmoSystem->SetSnapValues(snap[0], snap[1], snap[2]);
+                }
             }
         }
         
         ImGui::End();
+
+        // Handle gizmo keyboard shortcuts (must be in ImGui context)
+        if (gizmoSystem) {
+            gizmoSystem->HandleKeyboardShortcuts();
+        }
 
         // Render gizmo AFTER all ImGui windows (important!)
         if (gizmoSystem) {

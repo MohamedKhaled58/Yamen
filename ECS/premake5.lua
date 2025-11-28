@@ -18,6 +18,7 @@ project "ECS"
         "../Platform/Include",
         "../Graphics/Include",
         "../World/Include",
+        "../AssetsC3/Include",
         "%{IncludeDirs.entt}",
         "%{IncludeDirs.glm}",
         "%{IncludeDirs.spdlog}",

@@ -14,25 +14,26 @@ namespace Yamen::ECS {
     }
 
     void GizmoSystem::OnUpdate(Scene* scene, float deltaTime) {
-        // Handle keyboard shortcuts for mode switching
-        HandleKeyboardShortcuts();
+        // Keyboard shortcuts are now handled in RenderImGui context
     }
 
     void GizmoSystem::HandleKeyboardShortcuts() {
-        // W/E/R shortcuts (Unity-style) - only when not typing
-        if (!ImGui::GetIO().WantTextInput) {
-            if (ImGui::IsKeyPressed(ImGuiKey_W)) {
-                m_Operation = ImGuizmo::TRANSLATE;
-                YAMEN_CORE_TRACE("Gizmo: Translate mode");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_E)) {
-                m_Operation = ImGuizmo::ROTATE;
-                YAMEN_CORE_TRACE("Gizmo: Rotate mode");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) {
-                m_Operation = ImGuizmo::SCALE;
-                YAMEN_CORE_TRACE("Gizmo: Scale mode");
-            }
+        // Only block when actually typing in a text field
+        auto& io = ImGui::GetIO();
+        if (io.WantTextInput) return;
+        
+        // W/E/R shortcuts (Unity-style)
+        if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+            m_Operation = ImGuizmo::TRANSLATE;
+            YAMEN_CORE_INFO("Gizmo: Translate mode");
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+            m_Operation = ImGuizmo::ROTATE;
+            YAMEN_CORE_INFO("Gizmo: Rotate mode");
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+            m_Operation = ImGuizmo::SCALE;
+            YAMEN_CORE_INFO("Gizmo: Scale mode");
         }
     }
 
@@ -56,17 +57,20 @@ namespace Yamen::ECS {
                 glm::mat4 view = camComp.Camera.GetViewMatrix();
                 glm::mat4 projection = camComp.Camera.GetProjectionMatrix();
                 
-                // Build transform matrix manually
                 glm::mat4 matrix = glm::translate(glm::mat4(1.0f), transform.Translation);
                 matrix *= glm::mat4_cast(transform.Rotation);
                 matrix = glm::scale(matrix, transform.Scale);
                 
-                // Setup ImGuizmo
-                ImGuizmo::SetOrthographic(false);
-                ImGuizmo::SetDrawlist();
-                
-                // Use full viewport
+                // Setup ImGuizmo - FIXED: Use background draw list to avoid viewport crash
                 ImGuiIO& io = ImGui::GetIO();
+                
+                // Set orthographic mode
+                ImGuizmo::SetOrthographic(false);
+                
+                // CRITICAL: Use background draw list (doesn't require active window)
+                ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+                
+                // Set viewport rect - use full display size
                 ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
                 
                 // Manipulate
@@ -91,9 +95,13 @@ namespace Yamen::ECS {
                         glm::value_ptr(scale)
                     );
                     
+                    // Update transform - rotation comes from ImGuizmo in degrees
                     transform.Translation = translation;
                     transform.Rotation = glm::quat(glm::radians(rotation));
                     transform.Scale = scale;
+                    
+                    YAMEN_CORE_TRACE("Gizmo updated: Pos({}, {}, {})", 
+                        translation.x, translation.y, translation.z);
                 }
                 
                 break;

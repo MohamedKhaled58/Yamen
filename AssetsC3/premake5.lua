@@ -15,6 +15,9 @@ project "AssetsC3"
     includedirs {
         "Include",
         "../EngineCore/Include",
+        "%{IncludeDirs.glm}",
+        "%{IncludeDirs.spdlog}",
+        "%{IncludeDirs.fmt}",
         "%{IncludeDirs.xxHash}",
         "%{IncludeDirs.lz4}"
     }

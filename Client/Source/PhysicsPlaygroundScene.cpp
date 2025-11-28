@@ -75,6 +75,7 @@ namespace Yamen {
         
         auto& cameraTransform = cameraEntity.GetComponent<ECS::TransformComponent>();
         cameraTransform.Translation = glm::vec3(0.0f, 5.0f, -15.0f);
+        cameraTransform.Rotation = glm::quat(glm::vec3(0.0f, glm::radians(90.0f), 0.0f));
         
         auto& script = cameraEntity.AddComponent<ECS::NativeScriptComponent>();
         script.Bind<Client::CameraController>();

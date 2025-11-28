@@ -3,6 +3,7 @@
 #include "ECS/ScriptableEntity.h"
 #include "ECS/Components.h"
 #include "Platform/Input.h"
+#include <imgui.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -28,6 +29,15 @@ namespace Yamen::Client {
         }
 
         void OnUpdate(float deltaTime) override {
+            // Only block camera when actually typing in a text field
+            if (ImGui::GetCurrentContext()) {
+                auto& io = ImGui::GetIO();
+                if (io.WantTextInput) {
+                    m_FirstMouse = true;
+                    return;
+                }
+            }
+
             auto& transform = GetComponent<ECS::TransformComponent>();
             
             float speed = Platform::Input::IsKeyPressed(Platform::KeyCode::LeftShift) 
