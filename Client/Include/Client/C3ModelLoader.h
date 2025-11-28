@@ -28,10 +28,12 @@ public:
   /**
    * @brief Load a C3 model file and create an entity
    * @param registry ECS registry
+   * @param device Graphics device for texture loading
    * @param filepath Path to .c3 file
    * @return Entity handle (or entt::null on failure)
    */
   static entt::entity LoadModel(entt::registry &registry,
+                                Graphics::GraphicsDevice &device,
                                 const std::string &filepath);
 
   /**

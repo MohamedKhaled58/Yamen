@@ -70,6 +70,13 @@ namespace Yamen::Graphics {
         ID3D11Texture2D* GetTexture() const { return m_Texture.Get(); }
         ID3D11ShaderResourceView* GetSRV() const { return m_SRV.Get(); }
 
+        /**
+         * @brief Set D3D11 texture from externally created resources (e.g., DirectXTex)
+         * @param texture D3D11 texture resource
+         * @param srv Shader resource view
+         */
+        void SetD3DTexture(ID3D11Texture2D* texture, ID3D11ShaderResourceView* srv);
+
     private:
         GraphicsDevice& m_Device;
         ComPtr<ID3D11Texture2D> m_Texture;

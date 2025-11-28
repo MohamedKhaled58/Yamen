@@ -138,8 +138,7 @@ namespace Yamen::Client {
             static float fpsTimer = 0.0f;
             fpsTimer += deltaTime;
             if (fpsTimer >= 1.0f) {
-                YAMEN_CLIENT_INFO("FPS: {:.1f}, Frame Time: {:.2f}ms",
-                    frameTimer.GetFPS(), deltaTime * 1000.0f);
+                //YAMEN_CLIENT_INFO("FPS: {:.1f}, Frame Time: {:.2f}ms", frameTimer.GetFPS(), deltaTime * 1000.0f);
                 fpsTimer = 0.0f;
             }
         }

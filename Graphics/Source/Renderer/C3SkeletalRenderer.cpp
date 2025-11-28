@@ -1,4 +1,4 @@
-#include "Graphics/Renderer/C3SkeletalRenderer.h"
+﻿#include "Graphics/Renderer/C3SkeletalRenderer.h"
 #include "Core/Logging/Logger.h"
 #include "Graphics/Texture/TextureLoader.h"
 #include <cstring>
@@ -91,8 +91,8 @@ bool C3SkeletalRenderer::Initialize() {
 
   // Create sampler
   m_Sampler = std::make_unique<Sampler>(m_Device);
-  if (!m_Sampler->Create(SamplerFilter::Linear, SamplerAddressMode::Wrap, 1)) {
-    YAMEN_CORE_ERROR("Failed to create sampler");
+  if (!m_Sampler->Create(SamplerFilter::Point, SamplerAddressMode::Wrap, 1)) {
+      YAMEN_CORE_ERROR("Failed to create sampler");
     return false;
   }
 
@@ -114,36 +114,35 @@ void C3SkeletalRenderer::SetBoneMatrices(const glm::vec4 *bones,
   std::memcpy(m_BoneData.c3_BoneMatrix, bones, vec4Count * sizeof(glm::vec4));
 }
 
-void C3SkeletalRenderer::SetBoneMatricesFromMat4(const glm::mat4 *matrices,
-                                                 uint32_t count) {
-  if (count > MAX_BONES) {
-    YAMEN_CORE_WARN(
-        "SetBoneMatricesFromMat4: count ({}) exceeds MAX_BONES ({}), clamping",
-        count, MAX_BONES);
-    count = MAX_BONES;
-  }
+void C3SkeletalRenderer::SetBoneMatricesFromMat4(const glm::mat4* matrices, uint32_t count) {
+    if (count > MAX_BONES) {
+        //YAMEN_CORE_WARN("SetBoneMatricesFromMat4: clamping bone count {} → {}", count, MAX_BONES);
+        count = MAX_BONES;
+    }
 
-  // Convert 4x4 matrices to C3 format (3x4 stored as 3 vec4)
-  for (uint32_t i = 0; i < count; ++i) {
-    const glm::mat4 &mat = matrices[i];
-    uint32_t offset = i * 3;
+    for (uint32_t i = 0; i < count; ++i) {
+        // CRITICAL: Transpose because GLM is column-major, HLSL is row-major
+        glm::mat4 transposed = glm::transpose(matrices[i]);
 
-    // Extract 3x4 transformation matrix (ignore bottom row of 4x4)
-    m_BoneData.c3_BoneMatrix[offset + 0] =
-        glm::vec4(mat[0][0], mat[1][0], mat[2][0], mat[3][0]);
-    m_BoneData.c3_BoneMatrix[offset + 1] =
-        glm::vec4(mat[0][1], mat[1][1], mat[2][1], mat[3][1]);
-    m_BoneData.c3_BoneMatrix[offset + 2] =
-        glm::vec4(mat[0][2], mat[1][2], mat[2][2], mat[3][2]);
-  }
+        uint32_t offset = i * 3;
+
+        // Now extract the 3 ROWS of the transposed matrix → this is what C3 expects
+        m_BoneData.c3_BoneMatrix[offset + 0] = glm::vec4(transposed[0]);
+        m_BoneData.c3_BoneMatrix[offset + 1] = glm::vec4(transposed[1]);
+        m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(transposed[2]);
+        // Row 3 (0,0,0,1) is ignored in 3x4 skinning — perfect
+    }
 }
-
 void C3SkeletalRenderer::SetUVAnimationOffset(const glm::vec2 &offset) {
   m_PerObjectData.c3_UVAnimStep = offset;
 }
 
-void C3SkeletalRenderer::SetModelViewProj(const glm::mat4 &mvp) {
-  m_PerObjectData.c3_ModelViewProj = mvp;
+void C3SkeletalRenderer::SetModelViewProj(const glm::mat4& mvp) {
+    m_PerObjectData.c3_ModelViewProj = glm::transpose(mvp);  // ← transpose here too!
+}
+
+void C3SkeletalRenderer::SetTexture(Texture2D *texture) {
+  m_CustomTexture = texture;
 }
 
 void C3SkeletalRenderer::Bind() {
@@ -164,8 +163,10 @@ void C3SkeletalRenderer::Bind() {
   // Bind input layout
   m_InputLayout->Bind();
 
-  // Bind texture and sampler
-  if (m_DefaultTexture) {
+  // Bind texture (use custom if set, otherwise default) and sampler
+  if (m_CustomTexture) {
+    m_CustomTexture->Bind(0); // t0
+  } else if (m_DefaultTexture) {
     m_DefaultTexture->Bind(0); // t0
   }
   if (m_Sampler) {

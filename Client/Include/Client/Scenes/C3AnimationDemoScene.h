@@ -5,72 +5,74 @@
 #include "ECS/Systems/SkeletalAnimationSystem.h"
 #include "Graphics/Renderer/C3SkeletalRenderer.h"
 #include "Graphics/Renderer/Camera3D.h"
+#include "Graphics/Shader/Shader.h"
+#include "Graphics/RHI/Buffer.h"
+
 #include <entt/entt.hpp>
+#include <glm/glm.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace Yamen {
 
-/**
- * @brief Demo scene showcasing C3 skeletal animation
- *
- * Loads and displays animated ghost models from Assets/C3/ghost/085/
- * Demonstrates:
- * - Loading multiple C3 files
- * - Playing different animations
- * - Switching between animation states
- * - Camera controls
- */
-class C3AnimationDemoScene : public IScene {
-public:
-  C3AnimationDemoScene(Graphics::GraphicsDevice &device);
-  ~C3AnimationDemoScene() override;
+    struct GhostModelEntry {
+        entt::entity entity = entt::null;
+        std::string name;
+        std::string filepath;
+        bool isLoaded = false;
+        Assets::C3Motion* motion = nullptr;
+    };
 
-  bool Initialize() override;
-  void Update(float deltaTime) override;
-  void Render() override;
-  void RenderImGui() override;
-  const char *GetName() const override { return "C3 Animation Demo"; }
+    class C3AnimationDemoScene : public IScene {
+    public:
+        explicit C3AnimationDemoScene(Graphics::GraphicsDevice& device);
+        ~C3AnimationDemoScene() override;
 
-private:
-  // Graphics
-  Graphics::GraphicsDevice &m_Device;
+        bool Initialize() override;
+        void Update(float deltaTime) override;
+        void Render() override;
+        void RenderImGui() override;
+        void UnloadAllModels();
 
-  // ECS
-  entt::registry m_Registry;
+        const char* GetName() const override { return "C3 Animation Demo - Ghost King"; }
 
-  // Rendering
-  std::unique_ptr<Graphics::C3SkeletalRenderer> m_SkeletalRenderer;
-  std::unique_ptr<Graphics::Camera3D> m_Camera;
+    private:
+        void LoadAllModels();
+        void SwitchToModel(int index);
+        void UpdateCamera();
+        void RenderDebugGrid(const glm::mat4& view, const glm::mat4& proj);
+        void RenderDebugSkeleton(const glm::mat4& view, const glm::mat4& proj);
 
-  // Ghost models (different animation states)
-  struct GhostModel {
-    entt::entity entity;
-    std::string name;
-    std::string filepath;
-    bool isLoaded;
-    Assets::C3Motion *motion = nullptr; // Pointer to motion data
-  };
+        Graphics::GraphicsDevice& m_Device;
+        entt::registry m_Registry;
 
-  std::vector<GhostModel> m_GhostModels;
-  int m_CurrentModelIndex;
-  entt::entity m_BaseEntity = entt::null; // Entity holding the visible mesh
+        std::unique_ptr<Graphics::Camera3D> m_Camera;
+        std::unique_ptr<Graphics::C3SkeletalRenderer> m_SkeletalRenderer;
 
-  // Camera control
-  float m_CameraDistance;
-  float m_CameraAngle;
-  float m_CameraHeight;
+        std::vector<GhostModelEntry> m_GhostModels;
+        entt::entity m_BaseEntity = entt::null;
+        int m_CurrentModelIndex = 0;
 
-  // Animation control
-  bool m_AnimationPaused;
-  float m_AnimationSpeed;
-  float m_ModelScale;
+        // Camera
+        float m_CameraDistance = 1000.0f;
+        float m_CameraAngle = 0.0f;
+        float m_CameraHeight = 450.0f;
 
-  // Helper functions
-  void LoadAllModels();
-  void UnloadAllModels();
-  void SwitchToModel(int index);
-  void UpdateCamera();
-};
+        // Animation
+        bool m_AnimationPaused = false;
+        float m_AnimationSpeed = 30.0f;
+
+        // Model
+        float m_ModelScale = 1.0f;
+        bool m_ShowSkeleton = true;
+
+        // Debug rendering
+        std::shared_ptr<Graphics::Shader> m_LineShader;
+        std::shared_ptr<Graphics::Buffer> m_GridVertexBuffer;
+        std::shared_ptr<Graphics::Buffer> m_GridConstantBuffer;
+        std::shared_ptr<Graphics::Buffer> m_SkeletonVertexBuffer;
+        uint32_t m_GridVertexCount = 0;
+    };
 
 } // namespace Yamen

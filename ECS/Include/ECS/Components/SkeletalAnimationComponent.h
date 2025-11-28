@@ -1,8 +1,10 @@
 #pragma once
 
 #include "AssetsC3/C3PhyLoader.h"
+#include <Graphics/Texture/Texture2D.h>
 #include <memory>
 #include <string>
+
 
 namespace Yamen::Graphics {
 class Buffer;
@@ -47,6 +49,10 @@ struct C3MeshComponent {
   // GPU Buffers
   std::shared_ptr<Yamen::Graphics::Buffer> vertexBuffer;
   std::shared_ptr<Yamen::Graphics::Buffer> indexBuffer;
+  uint32_t indexCount;
+
+  // Texture
+  std::shared_ptr<Yamen::Graphics::Texture2D> texture;
 
   // Rendering state
   bool visible;

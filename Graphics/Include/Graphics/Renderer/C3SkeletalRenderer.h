@@ -72,6 +72,12 @@ public:
   void SetModelViewProj(const glm::mat4 &mvp);
 
   /**
+   * @brief Set custom texture (overrides default white texture)
+   * @param texture Texture to bind for rendering
+   */
+  void SetTexture(Texture2D *texture);
+
+  /**
    * @brief Bind renderer state (shaders and constant buffers)
    */
   void Bind();
@@ -110,6 +116,7 @@ private:
   std::unique_ptr<InputLayout> m_InputLayout;
   std::unique_ptr<Texture2D> m_DefaultTexture;
   std::unique_ptr<Sampler> m_Sampler;
+  Texture2D *m_CustomTexture = nullptr; // Optional custom texture
 
   // Rasterizer state for disabling culling
   struct ID3D11RasterizerState *m_RasterizerState = nullptr;

@@ -3,263 +3,251 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <vector>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 
 namespace Yamen {
     namespace Assets {
 
+        // ===================================================================
+        // SAFE READ HELPER (Critical!)
+        // ===================================================================
+        template<typename T>
+        static bool Read(const uint8_t* data, size_t& offset, size_t dataSize, T& out) {
+            if (offset + sizeof(T) > dataSize) {
+                return false;
+            }
+            memcpy(&out, data + offset, sizeof(T));
+            offset += sizeof(T);
+            return true;
+        }
+
+        // Helper for strings
+        static bool ReadString(const uint8_t* data, size_t& offset, size_t dataSize, std::string& out) {
+            uint32_t len = 0;
+            if (!Read(data, offset, dataSize, len)) return false;
+            if (len == 0 || len > 1024 || offset + len > dataSize) return false;
+            out.assign(reinterpret_cast<const char*>(data + offset), len);
+            offset += len;
+            return true;
+        }
+
+        // ===================================================================
+        // MAIN LOAD FUNCTIONS
+        // ===================================================================
         bool C3PhyLoader::Load(const std::string& filepath, C3Phy& outPhy) {
-            // Read entire file into memory
             std::ifstream file(filepath, std::ios::binary | std::ios::ate);
             if (!file.is_open()) {
-                YAMEN_CORE_ERROR("Failed to open PHY file: {}", filepath);
+                YAMEN_CORE_ERROR("C3PhyLoader: Failed to open file: {}", filepath);
                 return false;
             }
 
-            size_t fileSize = file.tellg();
+            size_t fileSize = static_cast<size_t>(file.tellg());
             file.seekg(0, std::ios::beg);
 
             std::vector<uint8_t> buffer(fileSize);
             if (!file.read(reinterpret_cast<char*>(buffer.data()), fileSize)) {
-                YAMEN_CORE_ERROR("Failed to read PHY file: {}", filepath);
+                YAMEN_CORE_ERROR("C3PhyLoader: Failed to read file: {}", filepath);
                 return false;
             }
 
             return LoadFromMemory(buffer.data(), fileSize, outPhy);
         }
 
-        bool C3PhyLoader::LoadFromMemory(const uint8_t* data, size_t size,
-            C3Phy& outPhy) {
-            size_t offset = 0;
-            bool firstMotionLoaded = false;  // Track if we\'ve loaded the main skeleton
-
-            // Check for MAXFILE header (3D Studio Max export format)
-            // Format: "MAXFILE C3 00001" (16 bytes) + Chunks
-            if (size >= 16 && memcmp(data, "MAXFILE C3", 10) == 0) {
-                YAMEN_CORE_INFO("Detected MAXFILE (3DS Max) format");
-                offset = 16; // Skip header, proceed to chunks
+        bool C3PhyLoader::LoadFromMemory(const uint8_t* data, size_t size, C3Phy& outPhy) {
+            if (size < 16) {
+                YAMEN_CORE_ERROR("C3PhyLoader: File too small");
+                return false;
             }
 
-            // Parse chunk-based format (original C3 files or MAXFILE chunk data)
-            while (offset + 8 <= size) {
-                char chunkID[4];
-                uint32_t chunkSize;
+            size_t offset = 0;
+            bool firstMotionLoaded = false;
 
-                if (!ReadChunkHeader(data, offset, size, chunkID, chunkSize)) {
-                    break; // End of file or error
-                }
+            // Skip MAXFILE header if present
+            if (memcmp(data, "MAXFILE C3", 10) == 0) {
+                YAMEN_CORE_INFO("C3PhyLoader: Detected MAXFILE header, skipping 16 bytes");
+                offset = 16;
+            }
 
-                size_t chunkEnd = offset + chunkSize;
+            // Main chunk parsing loop
+            while (offset + 8 < size) {
+                char chunkID[4] = { 0 };
+                uint32_t chunkSize = 0;
 
-                if (chunkEnd > size) {
-                    YAMEN_CORE_WARN("Chunk {} exceeds file bounds (offset: {}, size: {}, file size: {}) - skipping",
-                        std::string(chunkID, 4), offset, chunkSize, size);
+                if (!Read(data, offset, size, chunkID[0]) ||
+                    !Read(data, offset, size, chunkID[1]) ||
+                    !Read(data, offset, size, chunkID[2]) ||
+                    !Read(data, offset, size, chunkID[3]) ||
+                    !Read(data, offset, size, chunkSize)) {
                     break;
                 }
 
-                // Process chunk based on ID
+                size_t chunkEnd = offset + chunkSize;
+                if (chunkEnd > size) {
+                    YAMEN_CORE_WARN("C3PhyLoader: Chunk {} truncated ({} > {})", std::string(chunkID, 4), chunkEnd, size);
+                    break;
+                }
+
                 if (memcmp(chunkID, "MOTN", 4) == 0 || memcmp(chunkID, "MOTI", 4) == 0) {
                     if (!firstMotionLoaded) {
-                        // Load the first MOTI chunk (main skeleton with 90 bones)
-                        YAMEN_CORE_INFO("Found {} chunk, size: {} bytes", std::string(chunkID, 4), chunkSize);
+                        YAMEN_CORE_INFO("C3PhyLoader: Loading main skeleton from {} chunk ({} bytes)", std::string(chunkID, 4), chunkSize);
                         if (!outPhy.motion) {
                             outPhy.motion = new C3Motion();
                         }
-                        if (!ParseMotionChunk(data, offset, chunkEnd, *outPhy.motion)) {
-                            YAMEN_CORE_ERROR("Failed to parse motion chunk");
+                        if (!ParseMotionChunk(data, offset, size, *outPhy.motion)) {
+                            YAMEN_CORE_ERROR("C3PhyLoader: Failed to parse main motion chunk");
                             return false;
                         }
                         firstMotionLoaded = true;
-                    } else {
-                        // Skip subsequent MOTI chunks (accessories with 1 bone each)
-                        YAMEN_CORE_INFO("Skipping additional {} chunk (already loaded {} bones)",
-                            std::string(chunkID, 4), outPhy.motion->boneCount);
-                        offset = chunkEnd;
+                    }
+                    else {
+                        YAMEN_CORE_INFO("C3PhyLoader: Skipping extra {} chunk (accessory animation)", std::string(chunkID, 4));
                     }
                 }
-                else if (memcmp(chunkID, "PHYS", 4) == 0 ||
-                    memcmp(chunkID, "PHY ", 4) == 0 ||
-                    memcmp(chunkID, "PHY4", 4) == 0) {
+                else if (memcmp(chunkID, "PHYS", 4) == 0 || memcmp(chunkID, "PHY ", 4) == 0 || memcmp(chunkID, "PHY4", 4) == 0) {
                     bool isPhy4 = (memcmp(chunkID, "PHY4", 4) == 0);
-                    YAMEN_CORE_INFO("Found {} chunk, size: {} bytes", std::string(chunkID, 4), chunkSize);
-                    if (!ParsePhysicsChunk(data, offset, chunkEnd, outPhy, isPhy4)) {
-                        if (outPhy.vertices.size() > 0) {
-                            YAMEN_CORE_WARN("Failed to parse secondary physics chunk - ignoring error to preserve loaded mesh");
-                            offset = chunkEnd;
-                        }
-                        else {
-                            YAMEN_CORE_ERROR("Failed to parse physics chunk");
+                    YAMEN_CORE_INFO("C3PhyLoader: Loading physics mesh '{}' ({} bytes)", std::string(chunkID, 4), chunkSize);
+                    if (!ParsePhysicsChunk(data, offset, size, outPhy, isPhy4)) {
+                        if (outPhy.vertices.empty()) {
+                            YAMEN_CORE_ERROR("C3PhyLoader: Failed to parse physics chunk and no vertices loaded");
                             return false;
                         }
+                        else {
+                            YAMEN_CORE_WARN("C3PhyLoader: Partial physics load - continuing with existing mesh");
+                        }
                     }
                 }
-                else if (memcmp(chunkID, "MAXF", 4) == 0) {
-                    YAMEN_CORE_WARN("Found MAXF chunk, size: {} bytes - skipping (unknown format)", chunkSize);
-                    offset = chunkEnd;
-                }
-                else if (memcmp(chunkID, "PTCL", 4) == 0) {
-                    YAMEN_CORE_WARN("Found PTCL chunk, size: {} bytes - skipping (unknown format)", chunkSize);
-                    offset = chunkEnd;
+                else if (memcmp(chunkID, "MAXF", 4) == 0 || memcmp(chunkID, "PTCL", 4) == 0) {
+                    YAMEN_CORE_INFO("C3PhyLoader: Skipping known chunk: {}", std::string(chunkID, 4));
                 }
                 else {
-                    YAMEN_CORE_WARN("Unknown chunk ID: {}{}{}{}, size: {} bytes", chunkID[0],
-                        chunkID[1], chunkID[2], chunkID[3], chunkSize);
-                    offset = chunkEnd;
+                    YAMEN_CORE_WARN("C3PhyLoader: Unknown chunk: {}{}{}{} ({} bytes)",
+                        chunkID[0], chunkID[1], chunkID[2], chunkID[3], chunkSize);
                 }
 
                 offset = chunkEnd;
             }
 
-            YAMEN_CORE_INFO("Successfully loaded PHY file: {} vertices, {} triangles, {} bones",
-                outPhy.vertices.size(), outPhy.indices.size() / 3,
-                outPhy.motion ? outPhy.motion->boneCount : 0);
-
-            // Calculate Inverse Bind Pose Matrices from Frame 0
-            if (outPhy.motion && outPhy.motion->keyframeCount > 0 &&
-                !outPhy.motion->keyframes[0].boneMatrices.empty()) {
-                const auto& bindPose = outPhy.motion->keyframes[0].boneMatrices;
-                if (bindPose.size() == outPhy.motion->boneCount) {
+            // Calculate inverse bind pose from frame 0
+            if (outPhy.motion && !outPhy.motion->keyframes.empty() && outPhy.motion->boneCount > 0) {
+                const auto& frame0 = outPhy.motion->keyframes[0];
+                if (frame0.boneMatrices.size() == outPhy.motion->boneCount) {
                     outPhy.invBindMatrices.resize(outPhy.motion->boneCount);
-                    for (uint32_t i = 0; i < outPhy.motion->boneCount; ++i) {
-                        outPhy.invBindMatrices[i] = glm::inverse(bindPose[i]);
+                    for (size_t i = 0; i < outPhy.motion->boneCount; ++i) {
+                        outPhy.invBindMatrices[i] = glm::inverse(frame0.boneMatrices[i]);
                     }
-
-                    const auto& m = outPhy.invBindMatrices[0];
-                    YAMEN_CORE_INFO("Bone 0 InvBind: [{},{},{},{}] [{},{},{},{}] [{},{},{},{}] [{},{},{},{}]",
-                        m[0][0], m[0][1], m[0][2], m[0][3], m[1][0], m[1][1], m[1][2], m[1][3],
-                        m[2][0], m[2][1], m[2][2], m[2][3], m[3][0], m[3][1], m[3][2], m[3][3]);
-
-                    YAMEN_CORE_INFO("Calculated {} Inverse Bind Matrices from Frame 0", outPhy.motion->boneCount);
+                    YAMEN_CORE_INFO("C3PhyLoader: Generated {} inverse bind pose matrices from frame 0", outPhy.invBindMatrices.size());
                 }
             }
+
+            YAMEN_CORE_INFO("C3PhyLoader: Successfully loaded PHY");
+            YAMEN_CORE_INFO("   Vertices: {} | Triangles: {} | Bones: {}",
+                outPhy.vertices.size(),
+                outPhy.indices.empty() ? 0 : outPhy.indices.size() / 3,
+                outPhy.motion ? outPhy.motion->boneCount : 0);
 
             return true;
         }
 
-        // FIXED: Now takes chunkEnd instead of dataSize
-        bool C3PhyLoader::ParseMotionChunk(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Motion& motion) {
-            if (!Read(data, offset, chunkEnd, motion.boneCount)) return false;
-            if (!Read(data, offset, chunkEnd, motion.frameCount)) return false;
-
-            YAMEN_CORE_INFO("Motion: {} bones, {} frames", motion.boneCount, motion.frameCount);
-
-            char formatID[4];
-            size_t formatOffset = offset;
-            if (Read(data, offset, chunkEnd, formatID)) {
-                if (memcmp(formatID, "KKEY", 4) == 0) {
-                    motion.format = C3KeyframeFormat::KKEY;
-                    if (!ParseKeyframesKKEY(data, offset, chunkEnd, motion)) return false;
-                }
-                else if (memcmp(formatID, "XKEY", 4) == 0) {
-                    motion.format = C3KeyframeFormat::XKEY;
-                    if (!ParseKeyframesXKEY(data, offset, chunkEnd, motion)) return false;
-                }
-                else if (memcmp(formatID, "ZKEY", 4) == 0) {
-                    motion.format = C3KeyframeFormat::ZKEY;
-                    if (!ParseKeyframesZKEY(data, offset, chunkEnd, motion)) return false;
-                }
-                else {
-                    offset = formatOffset;
-                    motion.format = C3KeyframeFormat::Legacy;
-                    if (!ParseKeyframesLegacy(data, offset, chunkEnd, motion)) return false;
-                }
-            }
-
-            if (offset < chunkEnd && Read(data, offset, chunkEnd, motion.morphCount)) {
-                if (motion.morphCount > 0) {
-                    size_t morphDataSize = motion.morphCount * motion.frameCount;
-                    motion.morphWeights.resize(morphDataSize);
-                    for (size_t i = 0; i < morphDataSize && offset + 4 <= chunkEnd; ++i) {
-                        if (!Read(data, offset, chunkEnd, motion.morphWeights[i])) {
-                            YAMEN_CORE_WARN("Incomplete morph data");
-                            break;
-                        }
-                    }
-                    YAMEN_CORE_INFO("Loaded {} morph targets", motion.morphCount);
-                }
-            }
+        // ===================================================================
+        // MOTION PARSING
+        // ===================================================================
+        bool C3PhyLoader::ParseMotionChunk(const uint8_t* data, size_t& offset, size_t fileSize, C3Motion& motion) {
+            if (!Read(data, offset, fileSize, motion.boneCount)) return false;
+            if (!Read(data, offset, fileSize, motion.frameCount)) return false;
 
             motion.currentBones.resize(motion.boneCount, glm::mat4(1.0f));
             motion.currentFrame = 0;
 
-            return true;
+            char formatID[4] = { 0 };
+            size_t formatOffset = offset;
+
+            if (offset + 4 <= fileSize) {
+                memcpy(formatID, data + offset, 4);
+                offset += 4;
+            }
+
+            if (memcmp(formatID, "KKEY", 4) == 0) {
+                motion.format = C3KeyframeFormat::KKEY;
+                return ParseKeyframesKKEY(data, offset, fileSize, motion);
+            }
+            else if (memcmp(formatID, "XKEY", 4) == 0) {
+                motion.format = C3KeyframeFormat::XKEY;
+                return ParseKeyframesXKEY(data, offset, fileSize, motion);
+            }
+            else if (memcmp(formatID, "ZKEY", 4) == 0) {
+                motion.format = C3KeyframeFormat::ZKEY;
+                return ParseKeyframesZKEY(data, offset, fileSize, motion);
+            }
+            else {
+                offset = formatOffset;
+                motion.format = C3KeyframeFormat::Legacy;
+                return ParseKeyframesLegacy(data, offset, fileSize, motion);
+            }
         }
 
-        bool C3PhyLoader::ParseKeyframesKKEY(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Motion& motion) {
-            if (!Read(data, offset, chunkEnd, motion.keyframeCount)) return false;
+        bool C3PhyLoader::ParseKeyframesKKEY(const uint8_t* data, size_t& offset, size_t fileSize, C3Motion& motion) {
+            if (!Read(data, offset, fileSize, motion.keyframeCount)) return false;
             motion.keyframes.resize(motion.keyframeCount);
 
             for (uint32_t i = 0; i < motion.keyframeCount; ++i) {
                 auto& kf = motion.keyframes[i];
-                if (!Read(data, offset, chunkEnd, kf.framePosition)) return false;
-
+                if (!Read(data, offset, fileSize, kf.framePosition)) return false;
                 kf.boneMatrices.resize(motion.boneCount);
                 for (uint32_t b = 0; b < motion.boneCount; ++b) {
-                    if (!Read(data, offset, chunkEnd, kf.boneMatrices[b])) return false;
+                    if (!Read(data, offset, fileSize, kf.boneMatrices[b])) return false;
                     kf.boneMatrices[b] = glm::transpose(kf.boneMatrices[b]);
                 }
             }
-
-            YAMEN_CORE_INFO("Loaded {} KKEY keyframes", motion.keyframeCount);
+            YAMEN_CORE_INFO("C3PhyLoader: Loaded {} KKEY keyframes", motion.keyframeCount);
             return true;
         }
 
-        bool C3PhyLoader::ParseKeyframesXKEY(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Motion& motion) {
-            if (!Read(data, offset, chunkEnd, motion.keyframeCount)) return false;
+        bool C3PhyLoader::ParseKeyframesXKEY(const uint8_t* data, size_t& offset, size_t fileSize, C3Motion& motion) {
+            if (!Read(data, offset, fileSize, motion.keyframeCount)) return false;
             motion.keyframes.resize(motion.keyframeCount);
 
             for (uint32_t i = 0; i < motion.keyframeCount; ++i) {
                 auto& kf = motion.keyframes[i];
-                uint16_t framePos16;
-                if (!Read(data, offset, chunkEnd, framePos16)) return false;
-                kf.framePosition = framePos16;
-
+                uint16_t frame16;
+                if (!Read(data, offset, fileSize, frame16)) return false;
+                kf.framePosition = frame16;
                 kf.boneMatrices.resize(motion.boneCount);
                 for (uint32_t b = 0; b < motion.boneCount; ++b) {
-                    TidyMatrix tidyMat;
-                    if (!Read(data, offset, chunkEnd, tidyMat)) return false;
-                    kf.boneMatrices[b] = tidyMat.ToMat4();
+                    TidyMatrix tidy;
+                    if (!Read(data, offset, fileSize, tidy)) return false;
+                    kf.boneMatrices[b] = tidy.ToMat4();
                 }
             }
-
-            YAMEN_CORE_INFO("Loaded {} XKEY keyframes", motion.keyframeCount);
+            YAMEN_CORE_INFO("C3PhyLoader: Loaded {} XKEY keyframes", motion.keyframeCount);
             return true;
         }
 
-        bool C3PhyLoader::ParseKeyframesZKEY(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Motion& motion) {
-            if (!Read(data, offset, chunkEnd, motion.keyframeCount)) return false;
+        bool C3PhyLoader::ParseKeyframesZKEY(const uint8_t* data, size_t& offset, size_t fileSize, C3Motion& motion) {
+            if (!Read(data, offset, fileSize, motion.keyframeCount)) return false;
             motion.keyframes.resize(motion.keyframeCount);
 
             for (uint32_t i = 0; i < motion.keyframeCount; ++i) {
                 auto& kf = motion.keyframes[i];
-                uint16_t framePos16;
-                if (!Read(data, offset, chunkEnd, framePos16)) return false;
-                kf.framePosition = framePos16;
-
+                uint16_t frame16;
+                if (!Read(data, offset, fileSize, frame16)) return false;
+                kf.framePosition = frame16;
                 kf.boneMatrices.resize(motion.boneCount);
                 for (uint32_t b = 0; b < motion.boneCount; ++b) {
-                    DivInfo divInfo;
-                    if (!Read(data, offset, chunkEnd, divInfo)) return false;
-                    kf.boneMatrices[b] = divInfo.ToMat4();
-
-                    if (i == 0 && b == 0) {
-                        YAMEN_CORE_INFO("ZKEY Bone 0 Frame 0 Quat: [{}, {}, {}, {}] Trans: [{}, {}, {}]",
-                            divInfo.quaternion[0], divInfo.quaternion[1], divInfo.quaternion[2],
-                            divInfo.quaternion[3], divInfo.translation[0],
-                            divInfo.translation[1], divInfo.translation[2]);
-                    }
+                    DivInfo div;
+                    if (!Read(data, offset, fileSize, div)) return false;
+                    kf.boneMatrices[b] = div.ToMat4();
                 }
             }
-
-            YAMEN_CORE_INFO("Loaded {} ZKEY keyframes", motion.keyframeCount);
+            YAMEN_CORE_INFO("C3PhyLoader: Loaded {} ZKEY keyframes", motion.keyframeCount);
             return true;
         }
 
-        bool C3PhyLoader::ParseKeyframesLegacy(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Motion& motion) {
+        bool C3PhyLoader::ParseKeyframesLegacy(const uint8_t* data, size_t& offset, size_t fileSize, C3Motion& motion) {
             motion.keyframeCount = motion.frameCount;
             motion.keyframes.resize(motion.keyframeCount);
 
@@ -267,207 +255,189 @@ namespace Yamen {
                 auto& kf = motion.keyframes[f];
                 kf.framePosition = f;
                 kf.boneMatrices.resize(motion.boneCount);
-
                 for (uint32_t b = 0; b < motion.boneCount; ++b) {
-                    if (!Read(data, offset, chunkEnd, kf.boneMatrices[b])) {
-                        YAMEN_CORE_ERROR("Failed to read legacy bone matrix at frame {}, bone {}", f, b);
+                    if (!Read(data, offset, fileSize, kf.boneMatrices[b])) {
+                        YAMEN_CORE_ERROR("Legacy parse failed at frame {} bone {}", f, b);
                         return false;
                     }
                 }
             }
-
-            YAMEN_CORE_INFO("Loaded {} legacy keyframes", motion.keyframeCount);
+            YAMEN_CORE_INFO("C3PhyLoader: Loaded {} legacy keyframes", motion.keyframeCount);
             return true;
         }
 
-        // FIXED: Now takes chunkEnd + correct 76-byte layout
-        bool C3PhyLoader::ParsePhysicsChunk(const uint8_t* data, size_t& offset,
-            size_t chunkEnd, C3Phy& phy, bool isPhy4) {
-            size_t start_offset = offset;
-            YAMEN_CORE_INFO("=== ParsePhysicsChunk START ===");
-            YAMEN_CORE_INFO("  Start offset: {}, Chunk end: {}", offset, chunkEnd);
+        // ===================================================================
+        // PHYSICS MESH PARSING
+        // ===================================================================
+        uint32_t C3PhyLoader::GetBoneIndexForMesh(const std::string& name) {
+            std::string lower = name;
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
-            // Read name length
-            uint32_t nameLen;
-            if (!Read(data, offset, chunkEnd, nameLen)) {
-                YAMEN_CORE_ERROR("  Failed to read name length");
-                return false;
-            }
+            if (lower.find("head") != std::string::npos || lower.find("helmet") != std::string::npos || lower.find("armet") != std::string::npos) return 15;
+            if (lower.find("l_weapon") != std::string::npos || lower.find("l_shield") != std::string::npos || lower.find("l_hand") != std::string::npos) return 25;
+            if (lower.find("r_weapon") != std::string::npos || lower.find("r_shield") != std::string::npos || lower.find("r_hand") != std::string::npos) return 45;
+            if (lower.find("l_foot") != std::string::npos || lower.find("l_shoe") != std::string::npos) return 5;
+            if (lower.find("r_foot") != std::string::npos || lower.find("r_shoe") != std::string::npos) return 10;
+            if (lower.find("back") != std::string::npos || lower.find("mantle") != std::string::npos || lower.find("cape") != std::string::npos) return 1;
+
+            return 0; // Root
+        }
+
+        bool C3PhyLoader::ParsePhysicsChunk(const uint8_t* data, size_t& offset, size_t fileSize, C3Phy& phy, bool isPhy4) {
+            uint32_t nameLen = 0;
+            if (!Read(data, offset, fileSize, nameLen)) return false;
 
             std::string name = "unnamed";
-            if (nameLen > 0 && nameLen < 256 && offset + nameLen <= chunkEnd) {
+            if (nameLen > 0 && nameLen < 256 && offset + nameLen <= fileSize) {
                 name.assign(reinterpret_cast<const char*>(data + offset), nameLen);
                 offset += nameLen;
             }
-            YAMEN_CORE_INFO("  Model name: '{}'", name);
+            YAMEN_CORE_INFO("   Mesh name: '{}'", name);
 
-            // Read blend count
             uint32_t blendCount = 0;
-            if (!Read(data, offset, chunkEnd, blendCount)) return false;
+            if (!Read(data, offset, fileSize, blendCount)) return false;
             phy.blendCount = blendCount;
-            YAMEN_CORE_INFO("  Blend count: {}", blendCount);
 
-            // Read vertex counts
-            if (!Read(data, offset, chunkEnd, phy.normalVertexCount)) return false;
-            if (!Read(data, offset, chunkEnd, phy.alphaVertexCount)) return false;
+            if (!Read(data, offset, fileSize, phy.normalVertexCount)) return false;
+            if (!Read(data, offset, fileSize, phy.alphaVertexCount)) return false;
 
-            uint32_t totalVertices = phy.normalVertexCount + phy.alphaVertexCount;
-            YAMEN_CORE_INFO("  Vertices: {} normal, {} alpha ({} total)", phy.normalVertexCount, phy.alphaVertexCount, totalVertices);
-
-            if (totalVertices == 0 || totalVertices > 100000) {
-                YAMEN_CORE_ERROR("  Invalid vertex count");
+            uint32_t totalVerts = phy.normalVertexCount + phy.alphaVertexCount;
+            if (totalVerts == 0 || totalVerts > 200000) {
+                YAMEN_CORE_ERROR("   Invalid vertex count: {}", totalVerts);
                 return false;
             }
 
-            size_t baseVertexIndex = phy.vertices.size();
-            phy.vertices.resize(baseVertexIndex + totalVertices);
+            size_t baseVertIndex = phy.vertices.size();
+            phy.vertices.resize(baseVertIndex + totalVerts);
 
-            // === CORRECT PHY4 / zero-blend handling ===
+            uint32_t attachBone = GetBoneIndexForMesh(name);
+
             if (isPhy4 || blendCount == 0) {
-                // PHY4 or zero-blend = fixed 40-byte format:
-                // pos(12) + normal(12) + uv(8) + padding(8) = 40 bytes
-                const uint32_t vertexStride = 40;
+                // 40-byte fixed format: pos(12) + norm(12) + uv(8) + pad(8)
+                const size_t stride = 40;
+                if (offset + totalVerts * stride > fileSize) return false;
 
-                if (offset + totalVertices * vertexStride > chunkEnd) {
-                    YAMEN_CORE_ERROR("  Not enough data for {} 40-byte vertices", totalVertices);
-                    return false;
-                }
+                for (uint32_t i = 0; i < totalVerts; ++i) {
+                    const uint8_t* v = data + offset;
+                    auto& vert = phy.vertices[baseVertIndex + i];
+                    memcpy(&vert.position, v + 0, 12);
+                    memcpy(&vert.normal, v + 12, 12);
+                    memcpy(&vert.texCoord, v + 24, 8);
 
-                for (uint32_t i = 0; i < totalVertices; ++i) {
-                    const uint8_t* vData = data + offset;
-                    auto& v = phy.vertices[baseVertexIndex + i];
-
-                    memcpy(&v.position, vData + 0, 12);
-                    memcpy(&v.normal, vData + 12, 12);
-                    memcpy(&v.texCoord, vData + 24, 8);
-
-                    // No bone data → identity weight
-                    v.boneIndices[0] = v.boneIndices[1] = v.boneIndices[2] = v.boneIndices[3] = 0;
-                    v.boneWeights[0] = 1.0f;
-                    v.boneWeights[1] = v.boneWeights[2] = v.boneWeights[3] = 0.0f;
-
-                    offset += vertexStride;
-                }
-                YAMEN_CORE_INFO("  Parsed {} 40-byte (PHY4/zero-blend) vertices", totalVertices);
-            }
-            else if (blendCount > 0 && blendCount <= 4) {
-                // Standard blended format: indices + weights + pos + normal
-                uint32_t stride = blendCount * 4 + blendCount * 4 + 12 + 12; // indices + weights + pos + norm
-                if (offset + totalVertices * stride > chunkEnd) {
-                    YAMEN_CORE_ERROR("  Not enough data for blended vertices");
-                    return false;
-                }
-
-                for (uint32_t i = 0; i < totalVertices; ++i) {
-                    const uint8_t* vData = data + offset;
-                    auto& v = phy.vertices[baseVertexIndex + i];
-
-                    // Bone indices (uint32_t)
-                    for (uint32_t b = 0; b < blendCount; ++b)
-                        v.boneIndices[b] = reinterpret_cast<const uint32_t*>(vData)[b];
-                    for (uint32_t b = blendCount; b < 4; ++b)
-                        v.boneIndices[b] = 0;
-
-                    // Bone weights (float)
-                    const float* weights = reinterpret_cast<const float*>(vData + blendCount * 4);
-                    for (uint32_t b = 0; b < blendCount; ++b)
-                        v.boneWeights[b] = weights[b];
-                    for (uint32_t b = blendCount; b < 4; ++b)
-                        v.boneWeights[b] = 0.0f;
-
-                    // Position + Normal
-                    memcpy(&v.position, vData + blendCount * 8, 12);
-                    memcpy(&v.normal, vData + blendCount * 8 + 12, 12);
-                    v.texCoord = glm::vec2(0.0f); // No UV in blended format
+                    vert.boneIndices[0] = attachBone;
+                    vert.boneIndices[1] = vert.boneIndices[2] = vert.boneIndices[3] = 0;
+                    vert.boneWeights[0] = 1.0f;
+                    vert.boneWeights[1] = vert.boneWeights[2] = vert.boneWeights[3] = 0.0f;
 
                     offset += stride;
                 }
             }
             else {
-                YAMEN_CORE_ERROR("  Unsupported blend count: {}", blendCount);
-                return false;
+                // Blended format
+                size_t stride = blendCount * 4 + blendCount * 4 + 12 + 12;
+                if (offset + totalVerts * stride > fileSize) return false;
+
+                for (uint32_t i = 0; i < totalVerts; ++i) {
+                    const uint8_t* v = data + offset;
+                    auto& vert = phy.vertices[baseVertIndex + i];
+
+                    for (uint32_t b = 0; b < blendCount && b < 4; ++b)
+                        vert.boneIndices[b] = reinterpret_cast<const uint32_t*>(v)[b];
+                    for (uint32_t b = blendCount; b < 4; ++b)
+                        vert.boneIndices[b] = 0;
+
+                    const float* w = reinterpret_cast<const float*>(v + blendCount * 4);
+                    for (uint32_t b = 0; b < blendCount && b < 4; ++b)
+                        vert.boneWeights[b] = w[b];
+                    for (uint32_t b = blendCount; b < 4; ++b)
+                        vert.boneWeights[b] = 0.0f;
+
+                    memcpy(&vert.position, v + blendCount * 8, 12);
+                    memcpy(&vert.normal, v + blendCount * 8 + 12, 12);
+                    vert.texCoord = glm::vec2(0.0f);
+
+                    offset += stride;
+                }
             }
 
-            // === Triangle counts ===
-            if (!Read(data, offset, chunkEnd, phy.normalTriCount)) return false;
-            if (!Read(data, offset, chunkEnd, phy.alphaTriCount)) return false;
+            // Triangles
+            if (!Read(data, offset, fileSize, phy.normalTriCount)) return false;
+            if (!Read(data, offset, fileSize, phy.alphaTriCount)) return false;
 
-            uint32_t totalTriangles = phy.normalTriCount + phy.alphaTriCount;
-            if (totalTriangles > 100000) {
-                YAMEN_CORE_ERROR("  INVALID triangle count: {} (likely parsing error)", totalTriangles);
-                return false;
-            }
-            YAMEN_CORE_INFO("  Triangles: {} normal, {} alpha ({} total)", phy.normalTriCount, phy.alphaTriCount, totalTriangles);
+            uint32_t totalTris = phy.normalTriCount + phy.alphaTriCount;
+            size_t baseIndex = phy.indices.size();
+            phy.indices.resize(baseIndex + totalTris * 3);
 
-            // === Indices ===
-            size_t baseIndexIndex = phy.indices.size();
-            phy.indices.resize(baseIndexIndex + totalTriangles * 3);
-
-            for (uint32_t i = 0; i < totalTriangles * 3; ++i) {
+            for (uint32_t i = 0; i < totalTris * 3; ++i) {
                 uint16_t idx;
-                if (!Read(data, offset, chunkEnd, idx)) return false;
-                phy.indices[baseIndexIndex + i] = idx + static_cast<uint16_t>(baseVertexIndex);
+                if (!Read(data, offset, fileSize, idx)) return false;
+                phy.indices[baseIndex + i] = idx + static_cast<uint16_t>(baseVertIndex);
             }
 
-            // Optional: texture, bbox, etc.
-            ReadString(data, offset, chunkEnd, phy.textureName);
-            if (!phy.textureName.empty())
-                YAMEN_CORE_INFO("  Texture: '{}'", phy.textureName);
+            ReadString(data, offset, fileSize, phy.textureName);
 
-            YAMEN_CORE_INFO("=== ParsePhysicsChunk SUCCESS === {} bytes used", offset - start_offset);
+            YAMEN_CORE_INFO("   Loaded {} verts, {} tris, attached to bone {}", totalVerts, totalTris, attachBone);
             return true;
         }
 
-        void C3PhyLoader::InterpolateBones(const C3Motion& motion, float frame,
-            std::vector<glm::mat4>& outMatrices) {
-            if (motion.keyframes.empty() || motion.boneCount == 0) {
-                outMatrices.clear();
+        // ===================================================================
+        // INTERPOLATION
+        // ===================================================================
+        void C3PhyLoader::InterpolateBones(const C3Motion& motion, float frame, std::vector<glm::mat4>& outMatrices) {
+            if (motion.boneCount == 0 || motion.keyframes.empty()) {
+                outMatrices.assign(motion.boneCount, glm::mat4(1.0f));
                 return;
             }
 
             outMatrices.resize(motion.boneCount);
-            frame = std::max(0.0f, std::min(frame, static_cast<float>(motion.frameCount - 1)));
+
+            float maxFrame = motion.keyframes.back().framePosition;
+            frame = glm::clamp(frame, 0.0f, maxFrame);
 
             size_t kf1 = 0, kf2 = 0;
-            float t = 0.0f;
-
             for (size_t i = 0; i < motion.keyframes.size(); ++i) {
                 if (motion.keyframes[i].framePosition <= frame) kf1 = i;
                 if (motion.keyframes[i].framePosition >= frame) { kf2 = i; break; }
             }
-            if (kf1 < motion.keyframes.size() && kf2 < motion.keyframes.size() && kf1 != kf2) {
+            if (kf2 >= motion.keyframes.size()) kf2 = kf1;
+
+            float t = 0.0f;
+            if (kf1 != kf2) {
                 float f1 = static_cast<float>(motion.keyframes[kf1].framePosition);
                 float f2 = static_cast<float>(motion.keyframes[kf2].framePosition);
-                t = (frame - f1) / (f2 - f1);
+                if (f2 > f1) t = (frame - f1) / (f2 - f1);
             }
 
             for (uint32_t b = 0; b < motion.boneCount; ++b) {
                 const glm::mat4& m1 = motion.keyframes[kf1].boneMatrices[b];
                 const glm::mat4& m2 = motion.keyframes[kf2].boneMatrices[b];
-                outMatrices[b] = m1 * (1.0f - t) + m2 * t;
+
+                glm::vec3 pos1, pos2, scale1, scale2, skew;
+                glm::quat rot1, rot2;
+                glm::vec4 persp;
+
+                glm::decompose(m1, scale1, rot1, pos1, skew, persp);
+                glm::decompose(m2, scale2, rot2, pos2, skew, persp);
+
+                if (glm::dot(rot1, rot2) < 0.0f) rot2 = -rot2;
+
+                glm::quat rot = glm::slerp(rot1, rot2, t);
+                glm::vec3 pos = glm::mix(pos1, pos2, t);
+                glm::vec3 scale = glm::mix(scale1, scale2, t);
+
+                outMatrices[b] = glm::translate(glm::mat4(1.0f), pos) *
+                    glm::mat4_cast(rot) *
+                    glm::scale(glm::mat4(1.0f), scale);
             }
         }
-
-        bool C3PhyLoader::ReadString(const uint8_t* data, size_t& offset,
-            size_t dataSize, std::string& out) {
-            uint32_t length;
-            if (!Read(data, offset, dataSize, length)) return false;
-            if (length == 0 || length > 1024 || offset + length > dataSize) return false;
-            out.assign(reinterpret_cast<const char*>(data + offset), length);
-            offset += length;
+        bool C3PhyLoader::ReadString(const uint8_t* data, size_t& offset, size_t dataSize, std::string& out) {
+            uint32_t len = 0;
+            if (!Read(data, offset, dataSize, len)) return false;
+            if (len == 0 || len > 1024 || offset + len > dataSize) return false;
+            out.assign(reinterpret_cast<const char*>(data + offset), len);
+            offset += len;
             return true;
         }
-
-        bool C3PhyLoader::ReadChunkHeader(const uint8_t* data, size_t& offset,
-            size_t dataSize, char chunkID[4],
-            uint32_t& chunkSize) {
-            if (offset + 8 > dataSize) return false;
-            memcpy(chunkID, data + offset, 4);
-            offset += 4;
-            memcpy(&chunkSize, data + offset, 4);
-            offset += 4;
-            return true;
-        }
-
     } // namespace Assets
 } // namespace Yamen
+

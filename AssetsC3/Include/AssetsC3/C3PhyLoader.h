@@ -173,6 +173,7 @@ public:
    * @return True if successful
    */
   static bool LoadFromMemory(const uint8_t *data, size_t size, C3Phy &outPhy);
+    static uint32_t GetBoneIndexForMesh(const std::string &name);
 
   /**
    * @brief Interpolate bone matrices for a specific frame
@@ -184,7 +185,7 @@ public:
                                std::vector<glm::mat4> &outMatrices);
 
 private:
-    // Internal parsing functions — NOW SAFE with chunkEnd bounds
+    // Internal parsing functions Â— NOW SAFE with chunkEnd bounds
     static bool ParseMotionChunk(const uint8_t* data, size_t& offset,
         size_t chunkEnd, C3Motion& motion);
     static bool ParsePhysicsChunk(const uint8_t* data, size_t& offset,

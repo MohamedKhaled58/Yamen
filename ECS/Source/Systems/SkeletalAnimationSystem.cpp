@@ -37,10 +37,9 @@ void SkeletalAnimationSystem::Update(entt::registry &registry,
     // Space
     if (!anim.inverseBindMatrices.empty() &&
         anim.inverseBindMatrices.size() == anim.boneMatrices.size()) {
-        for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
-            anim.boneMatrices[i] =
-                anim.inverseBindMatrices[i] * anim.boneMatrices[i];  // CORRECT!
-        }
+      for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
+          anim.boneMatrices[i] = anim.inverseBindMatrices[i] * anim.boneMatrices[i];
+      }
     }
   }
 }
@@ -65,8 +64,9 @@ void SkeletalAnimationSystem::Stop(SkeletalAnimationComponent &anim) {
 void SkeletalAnimationSystem::SetFrame(SkeletalAnimationComponent &anim,
                                        float frame) {
   if (anim.motion) {
-    anim.currentFrame = std::max(
-        0.0f, std::min(frame, static_cast<float>(anim.motion->frameCount - 1)));
+    anim.currentFrame =
+        (std::max)(0.0f, (std::min)(frame, static_cast<float>(
+                                               anim.motion->frameCount - 1)));
   }
 }
 

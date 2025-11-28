@@ -1,375 +1,311 @@
-#include "Client/Scenes/C3AnimationDemoScene.h"
+﻿#include "Client/Scenes/C3AnimationDemoScene.h"
 #include "Core/Logging/Logger.h"
 #include "Platform/Input.h"
-#include <cmath>
+#include <d3d11.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
 namespace Yamen {
 
-C3AnimationDemoScene::C3AnimationDemoScene(Graphics::GraphicsDevice &device)
-    : m_Device(device), m_CurrentModelIndex(0), m_CameraDistance(200.0f),
-      m_CameraAngle(0.0f), m_CameraHeight(0.0f), m_AnimationPaused(false),
-      m_AnimationSpeed(30.0f), m_ModelScale(1.0f) {}
-
-C3AnimationDemoScene::~C3AnimationDemoScene() {}
-
-bool C3AnimationDemoScene::Initialize() {
-  YAMEN_CORE_INFO("C3AnimationDemoScene: Initializing...");
-
-  // Create camera
-  m_Camera = std::make_unique<Graphics::Camera3D>(45.0f, 1920.0f / 1080.0f,
-                                                  0.1f, 1000.0f);
-
-  // Create skeletal renderer
-  m_SkeletalRenderer = std::make_unique<Graphics::C3SkeletalRenderer>(m_Device);
-  if (!m_SkeletalRenderer->Initialize()) {
-    YAMEN_CORE_ERROR(
-        "C3AnimationDemoScene: Failed to initialize C3SkeletalRenderer!");
-    return false;
-  }
-
-  // // Define ghost models (different animation states)
-  // m_GhostModels = {
-  //     {entt::null, "Base Model",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/1.c3", false, nullptr},
-  //     {entt::null, "Standby",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/100.c3", false, nullptr},
-  //     {entt::null, "Rest",
-  //     "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/101.c3",
-  //      false, nullptr},
-  //     {entt::null, "Walk Left",
-  //          "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/101.c3", false,
-  //          nullptr},
-  //     {entt::null, "Walk Right",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/110.c3", false, nullptr},
-  //     {entt::null, "Walk Right",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/111.c3", false, nullptr},
-  //     {entt::null, "Run Left",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/120.c3", false, nullptr},
-  //     {entt::null, "Run Right",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/121.c3", false, nullptr},
-  //     {entt::null, "Attack",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/320.c3", false, nullptr},
-  //     {entt::null, "Unknown",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/330.c3", false,
-  //      nullptr},
-  //      {entt::null, "Unknown",
-  //      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/331.c3", false,
-  //      nullptr},
-  // {entt::null, "Unknown",
-  //                "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/340.c3", false,
-  //                nullptr},
-  //     {entt::null, "Unknown",
-  //                          "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/401.c3",
-  //                          false, nullptr},
-  //{
-  //         entt::null, "Unknown",
-  //         "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/962/402.c3", false,
-  //         nullptr}};
-
-  // Define ghost models (different animation states)
-  m_GhostModels = {
-      {entt::null, "Base Model",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/1.c3", false, nullptr},
-      {entt::null, "Standby",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/100.c3", false, nullptr},
-      {entt::null, "Rest", "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3",
-       false, nullptr},
-      {entt::null, "Walk Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3", false, nullptr},
-      {entt::null, "Walk Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/110.c3", false, nullptr},
-      {entt::null, "Walk Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/111.c3", false, nullptr},
-      {entt::null, "Run Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/120.c3", false, nullptr},
-      {entt::null, "Run Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/121.c3", false, nullptr},
-      {entt::null, "Attack",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/350.c3", false, nullptr},
-  };
-
-  // Load all models
-  LoadAllModels();
-
-  // Start with base model (visible geometry)
-  SwitchToModel(0);
-
-  YAMEN_CORE_INFO("C3AnimationDemoScene: Ready! Loaded {} ghost animations",
-                  m_GhostModels.size());
-
-  return true;
-}
-
-void C3AnimationDemoScene::LoadAllModels() {
-  // 1. Load the Base Model (Geometry)
-  // This is the only entity we will render.
-  m_BaseEntity =
-      Client::C3ModelLoader::LoadModel(m_Registry, m_GhostModels[0].filepath);
-  if (m_BaseEntity != entt::null) {
-    m_GhostModels[0].isLoaded = true;
-    m_GhostModels[0].entity = m_BaseEntity;
-
-    // Store its motion as well
-    auto *animComp =
-        m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
-    if (animComp) {
-      m_GhostModels[0].motion = animComp->motion;
-    }
-  } else {
-    YAMEN_CORE_ERROR("Failed to load Base Model: {}",
-                     m_GhostModels[0].filepath);
-  }
-
-  // 2. Load other files as "Animation Sources"
-  // We load them temporarily to extract the C3Motion data
-  for (size_t i = 1; i < m_GhostModels.size(); ++i) {
-    auto &model = m_GhostModels[i];
-
-    // Load as a temporary entity
-    entt::entity tempEntity =
-        Client::C3ModelLoader::LoadModel(m_Registry, model.filepath);
-    if (tempEntity != entt::null) {
-      model.isLoaded = true;
-      model.entity = entt::null; // Not a renderable entity
-
-      // Extract motion
-      auto *animComp =
-          m_Registry.try_get<ECS::SkeletalAnimationComponent>(tempEntity);
-      if (animComp && animComp->motion) {
-        model.motion = animComp->motion;
-        YAMEN_CORE_INFO("Loaded animation '{}' from {}", model.name,
-                        model.filepath);
-      } else {
-        YAMEN_CORE_WARN("Model '{}' has no animation data", model.name);
-      }
-
-      // Hide the temporary entity so it doesn't render (it has no vertices
-      // anyway)
-      auto *meshComp = m_Registry.try_get<ECS::C3MeshComponent>(tempEntity);
-      if (meshComp) {
-        meshComp->visible = false;
-      }
-
-      // We keep the entity alive because it owns the C3Phy which owns C3Motion
-      model.entity = tempEntity;
-    }
-  }
-}
-
-void C3AnimationDemoScene::Update(float deltaTime) {
-  // Camera controls
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Left)) {
-    m_CameraAngle -= 90.0f * deltaTime;
-  }
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Right)) {
-    m_CameraAngle += 90.0f * deltaTime;
-  }
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Up)) {
-    m_CameraDistance = std::max(10.0f, m_CameraDistance - 50.0f * deltaTime);
-  }
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Down)) {
-    m_CameraDistance = std::min(500.0f, m_CameraDistance + 50.0f * deltaTime);
-  }
-
-  // Animation controls
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Space)) {
-    m_AnimationPaused = !m_AnimationPaused;
-  }
-
-  // Model switching (1-8 keys)
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num1))
-    SwitchToModel(0);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num2))
-    SwitchToModel(1);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num3))
-    SwitchToModel(2);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num4))
-    SwitchToModel(3);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num5))
-    SwitchToModel(4);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num6))
-    SwitchToModel(5);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num7))
-    SwitchToModel(6);
-  if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num8))
-    SwitchToModel(7);
-
-  // Update camera
-  UpdateCamera();
-
-  // Update animations (if not paused)
-  if (!m_AnimationPaused) {
-    ECS::SkeletalAnimationSystem::Update(m_Registry, deltaTime);
-  }
-}
-
-void C3AnimationDemoScene::Render() {
-  if (!m_SkeletalRenderer || m_BaseEntity == entt::null) {
-    return;
-  }
-
-  // Calculate MVP matrix
-  glm::mat4 model = glm::mat4(1.0f);
-  // Apply scale
-  model = glm::scale(model, glm::vec3(m_ModelScale));
-
-  glm::mat4 view = m_Camera->GetViewMatrix();
-  glm::mat4 projection = m_Camera->GetProjectionMatrix();
-  glm::mat4 mvp = projection * view * model;
-
-  // Render the base model (which has the active animation applied)
-  Client::C3ModelLoader::RenderModel(m_BaseEntity, m_Registry,
-                                     *m_SkeletalRenderer, mvp);
-}
-
-void C3AnimationDemoScene::RenderImGui() {
-  ImGui::Begin("C3 Animation Demo");
-
-  ImGui::Text("Ghost Character Animations");
-  ImGui::Separator();
-
-  // Model selection
-  ImGui::Text("Select Animation:");
-  for (int i = 0; i < m_GhostModels.size(); ++i) {
-    auto &model = m_GhostModels[i];
-
-    bool isSelected = (i == m_CurrentModelIndex);
-    if (ImGui::Selectable(model.name.c_str(), isSelected)) {
-      SwitchToModel(i);
+    C3AnimationDemoScene::C3AnimationDemoScene(Graphics::GraphicsDevice& device)
+        : m_Device(device)
+    {
+        // Default values
+        m_CameraDistance = 1000.0f;
+        m_CameraAngle = 0.0f;
+        m_CameraHeight = 450.0f;
+        m_AnimationPaused = false;
+        m_AnimationSpeed = 30.0f;
+        m_ModelScale = 1.0f;
+        m_ShowSkeleton = true;
+        m_CurrentModelIndex = 0;
     }
 
-    // Show load status
-    ImGui::SameLine();
-    if (model.isLoaded) {
-      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "[Loaded]");
-    } else {
-      ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "[Failed]");
-    }
-  }
+    C3AnimationDemoScene::~C3AnimationDemoScene() = default;
 
-  ImGui::Separator();
+    bool C3AnimationDemoScene::Initialize() {
+        YAMEN_CORE_INFO("C3AnimationDemoScene: Initializing...");
 
-  // Animation controls
-  ImGui::Text("Animation Controls:");
-  if (ImGui::Button(m_AnimationPaused ? "Play (Space)" : "Pause (Space)")) {
-    m_AnimationPaused = !m_AnimationPaused;
-  }
+        m_Camera = std::make_unique<Graphics::Camera3D>(45.0f, 1920.0f / 1080.0f, 0.1f, 5000.0f);
+        m_SkeletalRenderer = std::make_unique<Graphics::C3SkeletalRenderer>(m_Device);
 
-  ImGui::SliderFloat("Speed (FPS)", &m_AnimationSpeed, 1.0f, 120.0f);
-
-  // Apply speed to current animation
-  if (m_BaseEntity != entt::null) {
-    auto *anim =
-        m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
-    if (anim) {
-      ECS::SkeletalAnimationSystem::SetSpeed(*anim, m_AnimationSpeed);
-
-      // Show animation info
-      ImGui::Separator();
-      ImGui::Text("Current Animation:");
-      ImGui::Text("  Frame: %.1f / %d", anim->currentFrame,
-                  anim->motion ? anim->motion->frameCount : 0);
-      ImGui::Text("  Bones: %d", anim->motion ? anim->motion->boneCount : 0);
-      ImGui::Text("  Keyframes: %d",
-                  anim->motion ? anim->motion->keyframeCount : 0);
-
-      if (anim->motion) {
-        const char *formatNames[] = {"Legacy", "KKEY", "XKEY", "ZKEY"};
-        int formatIndex = static_cast<int>(anim->motion->format);
-        ImGui::Text("  Format: %s", formatNames[formatIndex]);
-      }
-    }
-  }
-
-  ImGui::Separator();
-
-  // Camera controls
-  ImGui::Text("Camera Controls:");
-  ImGui::Text("  Arrow Keys: Rotate/Zoom");
-  ImGui::SliderFloat("Distance", &m_CameraDistance, 10.0f, 500.0f);
-  ImGui::SliderFloat("Angle", &m_CameraAngle, -180.0f, 180.0f);
-  ImGui::SliderFloat("Height", &m_CameraHeight, -100.0f, 100.0f);
-  ImGui::SliderFloat("Scale", &m_ModelScale, 0.01f, 5.0f);
-
-  ImGui::Separator();
-  ImGui::Text("Hotkeys:");
-  ImGui::BulletText("1-8: Switch animations");
-  ImGui::BulletText("Space: Pause/Play");
-  ImGui::BulletText("Arrows: Camera control");
-
-  ImGui::End();
-}
-
-void C3AnimationDemoScene::UnloadAllModels() {
-  // Unload base model
-  if (m_BaseEntity != entt::null) {
-    Client::C3ModelLoader::UnloadModel(m_BaseEntity, m_Registry);
-    m_BaseEntity = entt::null;
-  }
-
-  // Unload other models
-  for (auto &model : m_GhostModels) {
-    if (model.entity != entt::null && model.entity != m_BaseEntity) {
-      Client::C3ModelLoader::UnloadModel(model.entity, m_Registry);
-    }
-    model.entity = entt::null;
-    model.isLoaded = false;
-    model.motion = nullptr;
-  }
-}
-
-void C3AnimationDemoScene::SwitchToModel(int index) {
-  if (index < 0 || index >= m_GhostModels.size())
-    return;
-
-  if (!m_GhostModels[index].isLoaded)
-    return;
-
-  m_CurrentModelIndex = index;
-
-  // Apply the selected motion to the Base Entity
-  if (m_BaseEntity != entt::null) {
-    auto *animComp =
-        m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
-    if (animComp) {
-      Assets::C3Motion *newMotion = m_GhostModels[index].motion;
-      if (newMotion) {
-        // Only switch if different motion or forcing reset
-        if (animComp->motion != newMotion) {
-          animComp->motion = newMotion;
-          animComp->currentFrame = 0.0f; // Reset animation
-          // Resize bone matrices if needed (though should be same skeleton)
-          if (animComp->boneMatrices.size() != newMotion->boneCount) {
-            animComp->boneMatrices.resize(newMotion->boneCount,
-                                          glm::mat4(1.0f));
-          }
-          YAMEN_CORE_INFO("Switched to animation: {}",
-                          m_GhostModels[index].name);
+        if (!m_SkeletalRenderer->Initialize()) {
+            YAMEN_CORE_ERROR("Failed to initialize C3SkeletalRenderer!");
+            return false;
         }
-      }
+
+        m_GhostModels = {
+            {entt::null, "Base Model",   "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/10.c3",   false, nullptr},
+            {entt::null, "Standby",      "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/20.c3", false, nullptr},
+            {entt::null, "Rest",         "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/30.c3", false, nullptr},
+            {entt::null, "Walk Left",    "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/40.c3", false, nullptr},
+           // {entt::null, "Walk Right",   "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/50.c3", false, nullptr},
+           // {entt::null, "Run Left",     "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/60.c3", false, nullptr},
+           // {entt::null, "Run Right",    "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/70.c3", false, nullptr},
+           // {entt::null, "Attack",       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/80.c3", false, nullptr},
+        };
+
+        LoadAllModels();
+        SwitchToModel(0);
+
+        m_ModelScale = 2.8f;        // make him HUGE and terrifying
+        m_ShowSkeleton = true;    // see all 90 bones moving
+
+
+        YAMEN_CORE_INFO("C3AnimationDemoScene: Ready! Loaded {} animations", m_GhostModels.size());
+        return true;
     }
-  }
-}
 
-void C3AnimationDemoScene::UpdateCamera() {
-  // Orbit camera around the model
-  float angleRad = glm::radians(m_CameraAngle);
+    void C3AnimationDemoScene::LoadAllModels() {
+        // Load base model (has mesh + skeleton)
+        m_BaseEntity = Client::C3ModelLoader::LoadModel(m_Registry, m_Device, m_GhostModels[0].filepath);
+        if (m_BaseEntity != entt::null) {
+            m_GhostModels[0].isLoaded = true;
+            m_GhostModels[0].entity = m_BaseEntity;
+            if (auto* anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity))
+                m_GhostModels[0].motion = anim->motion;
+        }
 
-  glm::vec3 position;
-  position.x = m_CameraDistance * sin(angleRad);
-  position.y = m_CameraHeight;
-  position.z = m_CameraDistance * cos(angleRad);
+        // Load animation-only files (no mesh, just motion data)
+        for (size_t i = 1; i < m_GhostModels.size(); ++i) {
+            auto& model = m_GhostModels[i];
+            entt::entity e = Client::C3ModelLoader::LoadModel(m_Registry, m_Device, model.filepath);
+            if (e != entt::null) {
+                model.isLoaded = true;
+                model.entity = e;
+                if (auto* anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(e))
+                    model.motion = anim->motion;
 
-  glm::vec3 target(0.0f, 1.0f, 0.0f); // Look at model center
+                // Hide mesh so only base model is visible
+                if (auto* mesh = m_Registry.try_get<ECS::C3MeshComponent>(e))
+                    mesh->visible = false;
+            }
+        }
+    }
 
-  m_Camera->SetPosition(position);
-  // Calculate rotation to look at target
-  glm::vec3 direction = glm::normalize(target - position);
-  float pitch = asin(-direction.y);
-  float yaw = atan2(direction.x, direction.z);
-  m_Camera->SetRotation(pitch, yaw, 0.0f);
-}
+    void C3AnimationDemoScene::Update(float deltaTime) {
+        // Camera orbit controls
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Left))   m_CameraAngle -= 90.0f * deltaTime;
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Right))  m_CameraAngle += 90.0f * deltaTime;
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Up))     m_CameraDistance = std::max(100.0f, m_CameraDistance - 400.0f * deltaTime);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Down))   m_CameraDistance = std::min(3000.0f, m_CameraDistance + 400.0f * deltaTime);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageUp)) m_CameraHeight = std::min(1000.0f, m_CameraHeight + 300.0f * deltaTime);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageDown)) m_CameraHeight = std::max(0.0f, m_CameraHeight - 300.0f * deltaTime);
+
+        // Animation controls
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Space)) m_AnimationPaused = !m_AnimationPaused;
+
+        // Quick animation switch
+// === NUMPAD ANIMATION SWITCH (1-8) ===
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num1)) SwitchToModel(0);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num2)) SwitchToModel(1);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num3)) SwitchToModel(2);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num4)) SwitchToModel(3);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num5)) SwitchToModel(4);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num6)) SwitchToModel(5);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num7)) SwitchToModel(6);
+        if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num8)) SwitchToModel(7);
+
+        UpdateCamera();
+
+        if (!m_AnimationPaused) {
+            ECS::SkeletalAnimationSystem::Update(m_Registry, deltaTime * (m_AnimationSpeed / 30.0f));
+        }
+    }
+
+    void C3AnimationDemoScene::Render() {
+        if (!m_SkeletalRenderer || m_BaseEntity == entt::null) return;
+
+        glm::mat4 view = m_Camera->GetViewMatrix();
+        glm::mat4 proj = m_Camera->GetProjectionMatrix();
+
+        RenderDebugGrid(view, proj);
+        if (m_ShowSkeleton) RenderDebugSkeleton(view, proj);
+
+        glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
+        glm::mat4 mvp = proj * view * model;
+        glm::mat4 mvpForShader = glm::transpose(mvp);   // ← THIS IS THE HOLY LINE
+        Client::C3ModelLoader::RenderModel(m_BaseEntity, m_Registry, *m_SkeletalRenderer, mvpForShader);
+    }
+
+    void C3AnimationDemoScene::RenderImGui() {
+        ImGui::Begin("C3 Animation Demo - Ghost King", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+        ImGui::Text("Animation:");
+        for (int i = 0; i < (int)m_GhostModels.size(); ++i) {
+            bool selected = (i == m_CurrentModelIndex);
+            if (ImGui::Selectable(m_GhostModels[i].name.c_str(), selected)) {
+                SwitchToModel(i);
+            }
+            ImGui::SameLine();
+            ImGui::TextColored(m_GhostModels[i].isLoaded ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1),
+                m_GhostModels[i].isLoaded ? "[OK]" : "[X]");
+        }
+
+        ImGui::Separator();
+        ImGui::Checkbox("Show Skeleton", &m_ShowSkeleton);
+        if (ImGui::Button(m_AnimationPaused ? "Play (Space)" : "Pause (Space)"))
+            m_AnimationPaused = !m_AnimationPaused;
+
+        ImGui::SliderFloat("Speed", &m_AnimationSpeed, 1.0f, 120.0f, "%.1f FPS");
+        ImGui::SliderFloat("Scale", &m_ModelScale, 0.1f, 10.0f, "%.2f");
+
+        if (auto* anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity)) {
+            if (anim->motion) {
+                ECS::SkeletalAnimationSystem::SetSpeed(*anim, m_AnimationSpeed);
+                ImGui::Text("Frame: %.2f / %d", anim->currentFrame, anim->motion->frameCount);
+                ImGui::Text("Bones: %d", anim->motion->boneCount);
+            }
+        }
+
+        ImGui::End();
+    }
+
+    void C3AnimationDemoScene::SwitchToModel(int index) {
+        if (index < 0 || index >= (int)m_GhostModels.size() || !m_GhostModels[index].isLoaded)
+            return;
+
+        m_CurrentModelIndex = index;
+
+        if (m_BaseEntity == entt::null) return;
+
+        auto* anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
+        if (!anim || !m_GhostModels[index].motion) return;
+
+        if (anim->motion != m_GhostModels[index].motion) {
+            anim->motion = m_GhostModels[index].motion;
+            anim->currentFrame = 0.0f;
+
+            if (anim->boneMatrices.size() != anim->motion->boneCount) {
+                anim->boneMatrices.assign(anim->motion->boneCount, glm::mat4(1.0f));
+            }
+
+            YAMEN_CORE_INFO("Switched animation → {}", m_GhostModels[index].name);
+        }
+    }
+
+    void C3AnimationDemoScene::UpdateCamera() {
+        float rad = glm::radians(m_CameraAngle);
+
+        glm::vec3 eye(
+            m_CameraDistance * std::sin(rad),
+            m_CameraHeight,
+            m_CameraDistance * std::cos(rad)
+        );
+
+        glm::vec3 target(0.0f, 150.0f, 0.0f);
+        glm::vec3 direction = glm::normalize(target - eye);
+
+        float pitch = std::asin(-direction.y);
+        float yaw = std::atan2(direction.x, direction.z);
+
+        m_Camera->SetPosition(eye);
+        m_Camera->SetRotation(glm::degrees(pitch), glm::degrees(yaw), 0.0f);
+    }
+    void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4& view, const glm::mat4& proj) {
+        if (!m_LineShader) {
+            m_LineShader = std::make_shared<Graphics::Shader>(m_Device);
+            if (!m_LineShader->CreateFromFiles("C:/dev/C3Renderer/Yamen/Assets/Shaders/Line.hlsl", "C:/dev/C3Renderer/Yamen/Assets/Shaders/Line.hlsl")) {
+                YAMEN_CORE_ERROR("Failed to load Line.hlsl");
+                return;
+            }
+        }
+
+        if (!m_GridVertexBuffer) {
+            struct Vertex { glm::vec3 pos; glm::vec4 color; };
+            std::vector<Vertex> verts;
+            const int size = 20;
+            const float s = 50.0f;
+            const glm::vec4 gray(0.5f, 0.5f, 0.5f, 1);
+            const glm::vec4 red(1, 0, 0, 1), blue(0, 0, 1, 1);
+
+            for (int i = -size; i <= size; ++i) if (i != 0) {
+                float p = i * s;
+                verts.push_back({ {p, 0, -size * s}, gray }); verts.push_back({ {p, 0, size * s}, gray });
+                verts.push_back({ {-size * s, 0, p}, gray }); verts.push_back({ {size * s, 0, p}, gray });
+            }
+            verts.push_back({ {-size * s,0,0}, red }); verts.push_back({ {size * s,0,0}, red });
+            verts.push_back({ {0,0,-size * s}, blue }); verts.push_back({ {0,0,size * s}, blue });
+
+            m_GridVertexCount = (uint32_t)verts.size();
+            m_GridVertexBuffer = std::make_shared<Graphics::Buffer>(m_Device, Graphics::BufferType::Vertex);
+            m_GridVertexBuffer->Create(verts.data(), (uint32_t)(verts.size() * sizeof(Vertex)), sizeof(Vertex));
+        }
+
+        if (m_LineShader && m_GridVertexBuffer) {
+            m_LineShader->Bind();
+            glm::mat4 mvp = glm::transpose(proj * view);
+
+            if (!m_GridConstantBuffer) {
+                m_GridConstantBuffer = std::make_shared<Graphics::Buffer>(m_Device, Graphics::BufferType::Constant);
+                m_GridConstantBuffer->Create(&mvp, sizeof(mvp), 0, Graphics::BufferUsage::Dynamic);
+            }
+            else {
+                m_GridConstantBuffer->Update(&mvp, sizeof(mvp));
+            }
+
+            m_GridConstantBuffer->BindToVertexShader(0);
+            m_GridVertexBuffer->Bind();
+            m_Device.GetContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+            m_Device.GetContext()->Draw(m_GridVertexCount, 0);
+        }
+    }
+
+    void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4& view, const glm::mat4& proj) {
+        if (m_BaseEntity == entt::null || !m_ShowSkeleton) return;
+
+        auto* anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
+        if (!anim || anim->boneMatrices.empty() || !m_LineShader) return;
+
+        m_LineShader->Bind();
+
+        struct Vertex { glm::vec3 pos; glm::vec4 color; };
+        std::vector<Vertex> verts;
+        const glm::vec4 col(1, 1, 0, 1);
+        const float sz = 8.0f;
+        glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
+
+        for (const auto& m : anim->boneMatrices) {
+            glm::vec3 p = glm::vec3(scale * m[3]);
+            verts.push_back({ {p.x - sz, p.y,    p.z},    col });
+            verts.push_back({ {p.x + sz, p.y,    p.z},    col });
+            verts.push_back({ {p.x,    p.y - sz, p.z},    col });
+            verts.push_back({ {p.x,    p.y + sz, p.z},    col });
+            verts.push_back({ {p.x,    p.y,    p.z - sz}, col });
+            verts.push_back({ {p.x,    p.y,    p.z + sz}, col });
+        }
+
+        if (!m_SkeletonVertexBuffer || m_SkeletonVertexBuffer->GetSize() < verts.size() * sizeof(Vertex)) {
+            m_SkeletonVertexBuffer = std::make_shared<Graphics::Buffer>(m_Device, Graphics::BufferType::Vertex);
+            m_SkeletonVertexBuffer->Create(verts.data(), (uint32_t)(verts.size() * sizeof(Vertex)), sizeof(Vertex), Graphics::BufferUsage::Dynamic);
+        }
+        else {
+            m_SkeletonVertexBuffer->Update(verts.data(), (uint32_t)(verts.size() * sizeof(Vertex)));
+        }
+
+        glm::mat4 mvp = glm::transpose(proj * view * scale);
+        if (m_GridConstantBuffer) {
+            m_GridConstantBuffer->Update(&mvp, sizeof(mvp));
+            m_GridConstantBuffer->BindToVertexShader(0);
+        }
+
+        m_SkeletonVertexBuffer->Bind();
+        m_Device.GetContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        m_Device.GetContext()->Draw((UINT)verts.size(), 0);
+    }
+
+    void C3AnimationDemoScene::UnloadAllModels() {
+        if (m_BaseEntity != entt::null) {
+            Client::C3ModelLoader::UnloadModel(m_BaseEntity, m_Registry);
+            m_BaseEntity = entt::null;
+        }
+
+        for (auto& m : m_GhostModels) {
+            if (m.entity != entt::null && m.entity != m_BaseEntity) {
+                Client::C3ModelLoader::UnloadModel(m.entity, m_Registry);
+            }
+            m = {};
+        }
+    }
 
 } // namespace Yamen

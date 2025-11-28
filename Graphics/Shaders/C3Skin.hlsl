@@ -51,9 +51,9 @@ PSInput VSMain(VSInput input)
     int nIndex1 = int(input.c3_BoneIndexWeight.x * 3.0);
     int nIndex2 = int(input.c3_BoneIndexWeight.y * 3.0);
     
-    // Extract bone weights (convert from byte format: 0-255 -> 0.0-1.0)
-    float fWeight1 = input.c3_BoneIndexWeight.z * 0.0039215686; // 1/255
-    float fWeight2 = input.c3_BoneIndexWeight.w * 0.0039215686; // 1/255
+    // Extract bone weights (already normalized 0.0-1.0)
+    float fWeight1 = input.c3_BoneIndexWeight.z;
+    float fWeight2 = input.c3_BoneIndexWeight.w;
     
     // First bone transformation
     float4 v1 = c3_BoneMatrix[nIndex1];
