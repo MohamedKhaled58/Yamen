@@ -61,6 +61,7 @@ private:
   float m_CameraDistance = 1000.0f;
   float m_CameraAngle = 0.0f;
   float m_CameraHeight = 450.0f;
+  glm::vec3 m_CameraTarget = glm::vec3(0.0f);
 
   // Animation
   bool m_AnimationPaused = false;

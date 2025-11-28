@@ -81,8 +81,8 @@ PSInput VSMain(VSInput input)
     // Blend the two bone transformations
     float4 vBlendVertex = float4(vVertex1 * fWeight1 + vVertex2 * fWeight2, 1.0);
     
-    // Transform to clip space
-    output.position = mul(c3_ModelViewProj, vBlendVertex);
+    // Transform to clip space (vector * matrix for row-major)
+    output.position = mul(vBlendVertex, c3_ModelViewProj);
     
     // Apply UV animation offset
     output.texCoord = input.c3_TexCoord0 + c3_UVAnimStep;

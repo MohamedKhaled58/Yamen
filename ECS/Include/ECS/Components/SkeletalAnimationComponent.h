@@ -5,7 +5,6 @@
 #include <memory>
 #include <string>
 
-
 namespace Yamen::Graphics {
 class Buffer;
 }
@@ -25,8 +24,10 @@ struct SkeletalAnimationComponent {
   bool isPlaying;      // Playback state
   bool loop;           // Loop animation
 
-  std::vector<glm::mat4> boneMatrices;        // Current bone transformations
+  std::vector<glm::mat4> boneMatrices; // Current bone transformations (Global)
   std::vector<glm::mat4> inverseBindMatrices; // Inverse Bind Pose Matrices
+  std::vector<glm::mat4>
+      finalBoneMatrices; // Final Skinning Matrices (Global * InvBind)
 
   SkeletalAnimationComponent()
       : motion(nullptr), currentFrame(0.0f),
@@ -43,6 +44,7 @@ struct SkeletalAnimationComponent {
  * You should create the mesh in your rendering system where you have access to
  * GraphicsDevice
  */
+
 struct C3MeshComponent {
   Assets::C3Phy *phy; // Mesh data (owned by this component)
 

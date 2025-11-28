@@ -46,14 +46,14 @@ PSInput VSMain(VSInput input)
     PSInput output;
     
     // Transform position to world space
-    float4 worldPos = mul(World, float4(input.position, 1.0f));
+    float4 worldPos = mul(float4(input.position, 1.0f), World);
     output.worldPos = worldPos.xyz;
     
     // Transform position to clip space
-    output.position = mul(ViewProjection, worldPos);
+    output.position = mul(worldPos, ViewProjection);
     
     // Transform normal to world space (assuming uniform scaling)
-    output.normal = normalize(mul((float3x3)World, input.normal));
+    output.normal = normalize(mul(input.normal, (float3x3)World));
     
     output.texCoord = input.texCoord;
     

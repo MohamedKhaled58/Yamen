@@ -16,6 +16,16 @@ struct RenderVertex {
   glm::vec4 boneData; // Offset 36 (x,y=indices, z,w=weights)
 };
 
+static_assert(sizeof(RenderVertex) == 52, "RenderVertex size mismatch");
+static_assert(offsetof(RenderVertex, pos) == 0,
+              "RenderVertex pos offset mismatch");
+static_assert(offsetof(RenderVertex, color) == 12,
+              "RenderVertex color offset mismatch");
+static_assert(offsetof(RenderVertex, uv) == 28,
+              "RenderVertex uv offset mismatch");
+static_assert(offsetof(RenderVertex, boneData) == 36,
+              "RenderVertex boneData offset mismatch");
+
 entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
                                       Graphics::GraphicsDevice &device,
                                       const std::string &filepath) {
@@ -54,6 +64,15 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
     rv.boneData.z = v.boneWeights[0];
     rv.boneData.w = v.boneWeights[1];
 
+    // Debug: Log first vertex bone data
+    static bool logged = false;
+    if (!logged && renderVertices.empty()) {
+      YAMEN_CORE_INFO(
+          "First Vertex BoneData: Indices=({}, {}), Weights=({}, {})",
+          rv.boneData.x, rv.boneData.y, rv.boneData.z, rv.boneData.w);
+      logged = true;
+    }
+
     renderVertices.push_back(rv);
   }
 
@@ -80,7 +99,7 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
   std::string texturePath = filepath;
   size_t extPos = texturePath.find_last_of('.');
   if (extPos != std::string::npos) {
-    texturePath = "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/1.dds";
+    texturePath.replace(extPos, 3, ".dds");
   }
 
   meshComp.texture = Graphics::TextureLoader::LoadFromFile(device, texturePath);
@@ -117,12 +136,24 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
 void C3ModelLoader::RenderModel(entt::entity entity, entt::registry &registry,
                                 Graphics::C3SkeletalRenderer &renderer,
                                 const glm::mat4 &modelViewProj) {
-  if (!registry.valid(entity))
+  if (!registry.valid(entity)) {
+    // YAMEN_CORE_WARN("RenderModel: Invalid entity");
     return;
+  }
 
   auto *mesh = registry.try_get<ECS::C3MeshComponent>(entity);
-  if (!mesh || !mesh->visible || !mesh->vertexBuffer)
+  if (!mesh) {
+    // YAMEN_CORE_WARN("RenderModel: No mesh component");
     return;
+  }
+  if (!mesh->visible) {
+    // YAMEN_CORE_WARN("RenderModel: Mesh not visible");
+    return;
+  }
+  if (!mesh->vertexBuffer) {
+    YAMEN_CORE_WARN("RenderModel: No vertex buffer");
+    return;
+  }
 
   // Bind Texture
   if (mesh->texture) {
@@ -132,13 +163,20 @@ void C3ModelLoader::RenderModel(entt::entity entity, entt::registry &registry,
   }
 
   // Set MVP
+  // FIXED: Do NOT transpose here, Renderer handles it
   renderer.SetModelViewProj(modelViewProj);
 
   // Set Animation Data
   auto *anim = registry.try_get<ECS::SkeletalAnimationComponent>(entity);
-  if (anim && !anim->boneMatrices.empty()) {
-    renderer.SetBoneMatricesFromMat4(anim->boneMatrices.data(),
-                                     (uint32_t)anim->boneMatrices.size());
+  if (anim) {
+    if (!anim->finalBoneMatrices.empty()) {
+      renderer.SetBoneMatrices(anim->finalBoneMatrices.data(),
+                               (uint32_t)anim->finalBoneMatrices.size());
+    } else if (!anim->boneMatrices.empty()) {
+      // Fallback to Global Transforms if Final not ready
+      renderer.SetBoneMatrices(anim->boneMatrices.data(),
+                               (uint32_t)anim->boneMatrices.size());
+    }
   } else {
     // Reset bones to identity if no animation
     // (Or handle static mesh case)

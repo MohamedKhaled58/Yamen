@@ -49,6 +49,8 @@ bool C3SkeletalRenderer::Initialize() {
     m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
   }
 
+
+
   m_PerObjectData.c3_ModelViewProj = glm::mat4(1.0f);
   m_PerObjectData.c3_UVAnimStep = glm::vec2(0.0f);
 
@@ -100,43 +102,61 @@ bool C3SkeletalRenderer::Initialize() {
   return true;
 }
 
-void C3SkeletalRenderer::SetBoneMatrices(const glm::vec4 *bones,
+void C3SkeletalRenderer::SetBoneMatrices(const glm::mat4 *matrices,
                                          uint32_t count) {
   if (count > MAX_BONES) {
-    YAMEN_CORE_WARN(
-        "SetBoneMatrices: count ({}) exceeds MAX_BONES ({}), clamping", count,
-        MAX_BONES);
     count = MAX_BONES;
   }
 
-  // Copy bone matrices (3 vec4 per bone)
-  uint32_t vec4Count = count * 3;
-  std::memcpy(m_BoneData.c3_BoneMatrix, bones, vec4Count * sizeof(glm::vec4));
-}
+  // Debug: Log first 5 frames
+  static int logCount = 0;
+  if (logCount < 5 && count > 0) {
+      const glm::mat4& m = matrices[0];
+      YAMEN_CORE_INFO("Frame {} - Bone[0]: translation=({:.2f}, {:.2f}, {:.2f})",
+          logCount, m[3][0], m[3][1], m[3][2]);
+      logCount++;
+  }
 
-void C3SkeletalRenderer::SetBoneMatricesFromMat4(const glm::mat4 *matrices,
-                                                 uint32_t count) {
-  if (count > MAX_BONES) {
-    count = MAX_BONES;
+  // Debug: Log first bone matrix
+  static bool logged = false;
+  if (!logged && count > 0) {
+    const glm::mat4 &m = matrices[0];
+    YAMEN_CORE_INFO("Bone[0] Matrix sent to shader:");
+    YAMEN_CORE_INFO("  [{:.2f}, {:.2f}, {:.2f}, {:.2f}]", m[0][0], m[0][1],
+                    m[0][2], m[0][3]);
+    YAMEN_CORE_INFO("  [{:.2f}, {:.2f}, {:.2f}, {:.2f}]", m[1][0], m[1][1],
+                    m[1][2], m[1][3]);
+    YAMEN_CORE_INFO("  [{:.2f}, {:.2f}, {:.2f}, {:.2f}]", m[2][0], m[2][1],
+                    m[2][2], m[2][3]);
+    YAMEN_CORE_INFO("  [{:.2f}, {:.2f}, {:.2f}, {:.2f}]", m[3][0], m[3][1],
+                    m[3][2], m[3][3]);
+    logged = true;
   }
 
   for (uint32_t i = 0; i < count; ++i) {
-    // THIS LINE WAS MISSING THE TRANSPOSE — THIS IS THE BUG
-    glm::mat4 transposed = glm::transpose(matrices[i]);
+    // GLM stores column-major: m[col][row]
+    // Shader expects 3 vec4s as rows: [row0, row1, row2]
+    // Each row is [x, y, z, translation_component]
+    const glm::mat4 &m = matrices[i];
 
-    uint32_t offset = i * 3;
-
-    m_BoneData.c3_BoneMatrix[offset + 0] = glm::vec4(transposed[0]);
-    m_BoneData.c3_BoneMatrix[offset + 1] = glm::vec4(transposed[1]);
-    m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(transposed[2]);
+    // Row 0: [m00, m10, m20, m30] (first row with translation.x)
+    m_BoneData.c3_BoneMatrix[i * 3 + 0] =
+        glm::vec4(m[0][0], m[1][0], m[2][0], m[3][0]);
+    // Row 1: [m01, m11, m21, m31] (second row with translation.y)
+    m_BoneData.c3_BoneMatrix[i * 3 + 1] =
+        glm::vec4(m[0][1], m[1][1], m[2][1], m[3][1]);
+    // Row 2: [m02, m12, m22, m32] (third row with translation.z)
+    m_BoneData.c3_BoneMatrix[i * 3 + 2] =
+        glm::vec4(m[0][2], m[1][2], m[2][2], m[3][2]);
   }
 }
+
 void C3SkeletalRenderer::SetUVAnimationOffset(const glm::vec2 &offset) {
   m_PerObjectData.c3_UVAnimStep = offset;
 }
 
 void C3SkeletalRenderer::SetModelViewProj(const glm::mat4 &mvp) {
-  m_PerObjectData.c3_ModelViewProj = glm::transpose(mvp);
+  m_PerObjectData.c3_ModelViewProj = mvp;
 }
 
 void C3SkeletalRenderer::SetTexture(Texture2D *texture) {
@@ -148,6 +168,10 @@ void C3SkeletalRenderer::Bind() {
   if (!m_PerObjectCB || !m_BoneMatricesCB || !m_Shader || !m_InputLayout) {
     YAMEN_CORE_ERROR(
         "C3SkeletalRenderer::Bind() called but not properly initialized!");
+    if (!m_PerObjectCB)
+      YAMEN_CORE_ERROR("  m_PerObjectCB is NULL");
+    if (!m_BoneMatricesCB)
+      YAMEN_CORE_ERROR("  m_BoneMatricesCB is NULL");
     return;
   }
 
@@ -172,8 +196,13 @@ void C3SkeletalRenderer::Bind() {
   }
 
   // Bind constant buffers to vertex shader
-  m_PerObjectCB->BindToVertexShader(0);    // b0
-  m_BoneMatricesCB->BindToVertexShader(1); // b1
+  m_PerObjectCB->BindToVertexShader(0); // b0
+
+  if (m_BoneMatricesCB) {
+    m_BoneMatricesCB->BindToVertexShader(1); // b1
+  } else {
+    YAMEN_CORE_ERROR("C3SkeletalRenderer::Bind - m_BoneMatricesCB is NULL!");
+  }
 
   // Set rasterizer state
   if (m_RasterizerState) {

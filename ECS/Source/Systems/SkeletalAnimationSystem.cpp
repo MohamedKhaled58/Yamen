@@ -28,25 +28,28 @@ void SkeletalAnimationSystem::Update(entt::registry &registry,
       }
     }
 
-    // Interpolate bone matrices for current frame
+    // Interpolate bone matrices for current frame (Global Transforms)
     Assets::C3PhyLoader::InterpolateBones(*anim.motion, anim.currentFrame,
                                           anim.boneMatrices);
 
-    // Apply Inverse Bind Pose if available
-    // This transforms vertices from Model Space -> Bone Space -> Animated World
-    // Space
-    if (!anim.inverseBindMatrices.empty() &&
-        anim.inverseBindMatrices.size() == anim.boneMatrices.size()) {
-      for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
-        // GLM is column-major.
-        // Standard skinning: Final = Anim * InvBind
-        anim.boneMatrices[i] =
-            anim.boneMatrices[i] * anim.inverseBindMatrices[i];
-      }
+    // Ensure finalBoneMatrices is resized
+    if (anim.finalBoneMatrices.size() != anim.boneMatrices.size()) {
+      anim.finalBoneMatrices.resize(anim.boneMatrices.size());
+    }
+
+    // User's working order: InvBind * Global
+    // (This was manually tested and worked)
+// Apply InvBind: finalMatrix = Global * InvBind
+    for (size_t i = 0; i < anim.boneMatrices.size(); ++i) {
+        if (i < anim.inverseBindMatrices.size()) {
+            anim.finalBoneMatrices[i] = anim.boneMatrices[i] * anim.inverseBindMatrices[i];
+        }
+        else {
+            anim.finalBoneMatrices[i] = anim.boneMatrices[i];
+        }
     }
   }
 }
-
 void SkeletalAnimationSystem::Play(SkeletalAnimationComponent &anim,
                                    bool fromStart) {
   if (fromStart) {

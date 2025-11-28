@@ -28,7 +28,7 @@ PSInput VSMain(VSInput input)
     
     // Transform position to clip space
     // Note: SpriteBatch handles World transform on CPU, so we only need ViewProjection
-    output.position = mul(ViewProjection, float4(input.position, 1.0f));
+    output.position = mul(float4(input.position, 1.0f), ViewProjection);
     
     output.color = input.color;
     output.texCoord = input.texCoord;

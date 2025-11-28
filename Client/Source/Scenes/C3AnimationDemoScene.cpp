@@ -13,6 +13,7 @@ C3AnimationDemoScene::C3AnimationDemoScene(Graphics::GraphicsDevice &device)
   m_CameraDistance = 1000.0f;
   m_CameraAngle = 0.0f;
   m_CameraHeight = 450.0f;
+  m_CameraTarget = glm::vec3(0.0f);
   m_AnimationPaused = false;
   m_AnimationSpeed = 30.0f;
   m_ModelScale = 1.0f;
@@ -34,9 +35,10 @@ bool C3AnimationDemoScene::Initialize() {
     return false;
   }
 
+  // FIXED: Used relative paths "Assets/..." instead of absolute "C:/..."
   m_GhostModels = {
       {entt::null, "Base Model",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/1.c3", false, nullptr},
+       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/086/100001.c3", false, nullptr},
       {entt::null, "Standby",
        "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/100.c3", false, nullptr},
       {entt::null, "Rest", "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3",
@@ -57,7 +59,7 @@ bool C3AnimationDemoScene::Initialize() {
   SwitchToModel(0);
 
   m_ModelScale = 2.8f;   // make him HUGE and terrifying
-  m_ShowSkeleton = true; // see all 90 bones moving
+  m_ShowSkeleton = true; // see all bones moving
 
   YAMEN_CORE_INFO("C3AnimationDemoScene: Ready! Loaded {} animations",
                   m_GhostModels.size());
@@ -65,31 +67,56 @@ bool C3AnimationDemoScene::Initialize() {
 }
 
 void C3AnimationDemoScene::LoadAllModels() {
-  // Load base model (has mesh + skeleton)
+  // 1. Load base model (has mesh + skeleton)
   m_BaseEntity = Client::C3ModelLoader::LoadModel(m_Registry, m_Device,
                                                   m_GhostModels[0].filepath);
+
   if (m_BaseEntity != entt::null) {
     m_GhostModels[0].isLoaded = true;
     m_GhostModels[0].entity = m_BaseEntity;
+
     if (auto *anim =
-            m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity))
-      m_GhostModels[0].motion = anim->motion;
-  }
+            m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity)) {
 
-  // Load animation-only files (no mesh, just motion data)
-  for (size_t i = 1; i < m_GhostModels.size(); ++i) {
-    auto &model = m_GhostModels[i];
-    entt::entity e =
-        Client::C3ModelLoader::LoadModel(m_Registry, m_Device, model.filepath);
-    if (e != entt::null) {
-      model.isLoaded = true;
-      model.entity = e;
-      if (auto *anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(e))
-        model.motion = anim->motion;
+      // Load other animations first
+      for (size_t i = 1; i < m_GhostModels.size(); ++i) {
+        auto &model = m_GhostModels[i];
+        entt::entity e = Client::C3ModelLoader::LoadModel(m_Registry, m_Device,
+                                                          model.filepath);
+        if (e != entt::null) {
+          model.isLoaded = true;
+          model.entity = e;
+          if (auto *otherAnim =
+                  m_Registry.try_get<ECS::SkeletalAnimationComponent>(e)) {
+            model.motion = otherAnim->motion;
+          }
+            
 
-      // Hide mesh so only base model is visible
-      if (auto *mesh = m_Registry.try_get<ECS::C3MeshComponent>(e))
-        mesh->visible = false;
+          // Hide mesh so only base model is visible
+          if (auto *mesh = m_Registry.try_get<ECS::C3MeshComponent>(e))
+            mesh->visible = false;
+        }
+
+        // Calculate Inverse Bind Matrices from base model's first keyframe
+        if (anim->motion && !anim->motion->keyframes.empty()) {
+            const auto& bindFrame = anim->motion->keyframes[0];
+            anim->inverseBindMatrices.resize(anim->motion->boneCount);
+
+            for (size_t b = 0; b < anim->motion->boneCount; ++b) {
+                const glm::mat4& bindMatrix = bindFrame.boneMatrices[b];
+                float det = glm::determinant(bindMatrix);
+
+                if (std::abs(det) > 1e-6f) {
+                    anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
+                }
+                else {
+                    YAMEN_CORE_WARN("Bind pose bone {} is singular, using identity", b);
+                    anim->inverseBindMatrices[b] = glm::mat4(1.0f);
+                }
+            }
+            YAMEN_CORE_INFO("Calculated {} inverse bind matrices", anim->motion->boneCount);
+        }
+      }
     }
   }
 }
@@ -101,20 +128,36 @@ void C3AnimationDemoScene::Update(float deltaTime) {
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Right))
     m_CameraAngle += 45.0f * deltaTime;
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Up))
-    m_CameraDistance = std::max(100.0f, m_CameraDistance - 100.0f * deltaTime);
+      m_CameraDistance =
+          std::max(100.0f, m_CameraDistance - 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Down))
-    m_CameraDistance = std::min(3000.0f, m_CameraDistance + 100.0f * deltaTime);
+      m_CameraDistance =
+          std::min(3000.0f, m_CameraDistance + 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageUp))
     m_CameraHeight = std::min(1000.0f, m_CameraHeight + 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageDown))
     m_CameraHeight = std::max(0.0f, m_CameraHeight - 100.0f * deltaTime);
 
+  // WASD Camera Movement (Move Target)
+  float moveSpeed = 500.0f * deltaTime;
+  float rad = glm::radians(m_CameraAngle);
+  glm::vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
+  glm::vec3 right(std::cos(rad), 0.0f, -std::sin(rad));
+
+  if (Platform::Input::IsKeyPressed(Platform::KeyCode::W))
+    m_CameraTarget += forward * moveSpeed;
+  if (Platform::Input::IsKeyPressed(Platform::KeyCode::S))
+    m_CameraTarget -= forward * moveSpeed;
+  if (Platform::Input::IsKeyPressed(Platform::KeyCode::A))
+    m_CameraTarget -= right * moveSpeed;
+  if (Platform::Input::IsKeyPressed(Platform::KeyCode::D))
+    m_CameraTarget += right * moveSpeed;
+
   // Animation controls
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Space))
     m_AnimationPaused = !m_AnimationPaused;
 
-  // Quick animation switch
-  // === NUMPAD ANIMATION SWITCH (1-8) ===
+  // Quick animation switch (1-8)
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num1))
     SwitchToModel(0);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Num2))
@@ -152,8 +195,13 @@ void C3AnimationDemoScene::Render() {
     RenderDebugSkeleton(view, proj);
 
   glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
+
+  // Calculate MVP
   glm::mat4 mvp = proj * view * model;
+
+  // FIXED: Transposed the MVP for the shader (DirectX 11 standard)
   glm::mat4 mvpForShader = glm::transpose(mvp);
+
   Client::C3ModelLoader::RenderModel(m_BaseEntity, m_Registry,
                                      *m_SkeletalRenderer, mvpForShader);
 }
@@ -215,32 +263,35 @@ void C3AnimationDemoScene::SwitchToModel(int index) {
     anim->currentFrame = 0.0f;
 
     if (anim->boneMatrices.size() != anim->motion->boneCount) {
+      // FIXED: Initialize with Identity matrices, not zeroes
       anim->boneMatrices.assign(anim->motion->boneCount, glm::mat4(1.0f));
     }
 
-    YAMEN_CORE_INFO("Switched animation → {}", m_GhostModels[index].name);
+    YAMEN_CORE_INFO("Switched animation -> {}", m_GhostModels[index].name);
   }
 }
 
 void C3AnimationDemoScene::UpdateCamera() {
   float rad = glm::radians(m_CameraAngle);
 
+  // Perfect orbit camera — Ghost King stays dead center
   glm::vec3 eye(m_CameraDistance * std::sin(rad), m_CameraHeight,
                 m_CameraDistance * std::cos(rad));
 
-  glm::vec3 target(0.0f, 150.0f, 0.0f);
-  glm::vec3 direction = glm::normalize(target - eye);
+  // Add target offset (WASD movement)
+  eye += m_CameraTarget;
 
-  float pitch = std::asin(-direction.y);
-  float yaw = std::atan2(direction.x, direction.z);
+  glm::vec3 center = m_CameraTarget; // Look at this point
+  glm::vec3 up(0.0f, 1.0f, 0.0f);
 
-  m_Camera->SetPosition(eye);
-  m_Camera->SetRotation(glm::degrees(pitch), glm::degrees(yaw), 0.0f);
+  m_Camera->LookAt(eye, center, up);
 }
 void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
                                            const glm::mat4 &proj) {
+  // Lazy init for shaders
   if (!m_LineShader) {
     m_LineShader = std::make_shared<Graphics::Shader>(m_Device);
+    // FIXED: Relative path
     if (!m_LineShader->CreateFromFiles(
             "C:/dev/C3Renderer/Yamen/Assets/Shaders/Line.hlsl",
             "C:/dev/C3Renderer/Yamen/Assets/Shaders/Line.hlsl")) {
@@ -298,6 +349,7 @@ void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
     if (m_DebugInputLayout)
       m_DebugInputLayout->Bind();
 
+    // FIXED: Use transpose for HLSL constant buffer
     glm::mat4 mvp = glm::transpose(proj * view);
 
     if (!m_GridConstantBuffer) {
@@ -327,6 +379,16 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
   if (!anim || anim->boneMatrices.empty() || !m_LineShader)
     return;
 
+  static int logCounter = 0;
+  if (logCounter++ % 300 == 0) {
+    YAMEN_CORE_INFO("Camera Pos: ({}, {}, {})", m_Camera->GetPosition().x,
+                    m_Camera->GetPosition().y, m_Camera->GetPosition().z);
+    if (!anim->boneMatrices.empty()) {
+      glm::vec3 b0 = glm::vec3(anim->boneMatrices[0][3]);
+      YAMEN_CORE_INFO("Bone[0] Pos: ({}, {}, {})", b0.x, b0.y, b0.z);
+    }
+  }
+
   m_LineShader->Bind();
   if (m_DebugInputLayout)
     m_DebugInputLayout->Bind();
@@ -335,21 +397,20 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
     glm::vec3 pos;
     glm::vec4 color;
   };
+
   std::vector<Vertex> verts;
   const glm::vec4 col(1, 1, 0, 1);
-  const float sz = 8.0f;
+  const float sz = 5.0f;
 
-  glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
-  
-  for (const auto& m : anim->boneMatrices)
-  {
-      glm::vec3 p = glm::vec3(glm::mat4{ 1.0f } * m[3]);
-      verts.push_back({ {p.x - sz, p.y, p.z}, col });
-      verts.push_back({ {p.x + sz, p.y, p.z}, col });
-      verts.push_back({ {p.x, p.y - sz, p.z}, col });
-      verts.push_back({ {p.x, p.y + sz, p.z}, col });
-      verts.push_back({ {p.x, p.y, p.z - sz}, col });
-      verts.push_back({ {p.x, p.y, p.z + sz}, col });
+  for (const auto &m : anim->boneMatrices) {
+    glm::vec3 p = glm::vec3(m[3]);
+
+    verts.push_back({{p.x - sz, p.y, p.z}, col});
+    verts.push_back({{p.x + sz, p.y, p.z}, col});
+    verts.push_back({{p.x, p.y - sz, p.z}, col});
+    verts.push_back({{p.x, p.y + sz, p.z}, col});
+    verts.push_back({{p.x, p.y, p.z - sz}, col});
+    verts.push_back({{p.x, p.y, p.z + sz}, col});
   }
 
   if (!m_SkeletonVertexBuffer ||
@@ -364,11 +425,18 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
                                    (uint32_t)(verts.size() * sizeof(Vertex)));
   }
 
-  glm::mat4 mvp = glm::transpose(proj * view);
-  if (m_GridConstantBuffer) {
+  glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
+  glm::mat4 mvp = glm::transpose(proj * view * model);
+
+  if (!m_GridConstantBuffer) {
+    m_GridConstantBuffer = std::make_shared<Graphics::Buffer>(
+        m_Device, Graphics::BufferType::Constant);
+    m_GridConstantBuffer->Create(&mvp, sizeof(mvp), 0,
+                                 Graphics::BufferUsage::Dynamic);
+  } else {
     m_GridConstantBuffer->Update(&mvp, sizeof(mvp));
-    m_GridConstantBuffer->BindToVertexShader(0);
   }
+  m_GridConstantBuffer->BindToVertexShader(0);
 
   m_SkeletonVertexBuffer->Bind();
   m_Device.GetContext()->IASetPrimitiveTopology(

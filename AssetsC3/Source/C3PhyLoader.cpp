@@ -71,13 +71,13 @@ bool C3PhyLoader::LoadFromMemory(const uint8_t *data, size_t size,
   size_t offset = 0;
   bool firstMotionLoaded = false;
 
-  // Skip MAXFILE header if present
+  // Skip MAXFILE header
   if (memcmp(data, "MAXFILE C3", 10) == 0) {
     YAMEN_CORE_INFO("C3PhyLoader: Detected MAXFILE header, skipping 16 bytes");
     offset = 16;
   }
 
-  // Main chunk parsing loop
+  // --- Chunk Parsing Loop ---
   while (offset + 8 < size) {
     char chunkID[4] = {0};
     uint32_t chunkSize = 0;
@@ -92,81 +92,78 @@ bool C3PhyLoader::LoadFromMemory(const uint8_t *data, size_t size,
 
     size_t chunkEnd = offset + chunkSize;
     if (chunkEnd > size) {
-      YAMEN_CORE_WARN("C3PhyLoader: Chunk {} truncated ({} > {})",
-                      std::string(chunkID, 4), chunkEnd, size);
+      YAMEN_CORE_WARN("C3PhyLoader: Chunk {} truncated",
+                      std::string(chunkID, 4));
       break;
     }
 
     if (memcmp(chunkID, "MOTN", 4) == 0 || memcmp(chunkID, "MOTI", 4) == 0) {
       if (!firstMotionLoaded) {
-        YAMEN_CORE_INFO(
-            "C3PhyLoader: Loading main skeleton from {} chunk ({} bytes)",
-            std::string(chunkID, 4), chunkSize);
-        if (!outPhy.motion) {
+        YAMEN_CORE_INFO("C3PhyLoader: Loading main skeleton from {}",
+                        std::string(chunkID, 4));
+        if (!outPhy.motion)
           outPhy.motion = new C3Motion();
-        }
-        if (!ParseMotionChunk(data, offset, size, *outPhy.motion)) {
-          YAMEN_CORE_ERROR("C3PhyLoader: Failed to parse main motion chunk");
+        if (!ParseMotionChunk(data, offset, size, *outPhy.motion))
           return false;
-        }
         firstMotionLoaded = true;
-      } else {
-        YAMEN_CORE_INFO(
-            "C3PhyLoader: Skipping extra {} chunk (accessory animation)",
-            std::string(chunkID, 4));
       }
     } else if (memcmp(chunkID, "PHYS", 4) == 0 ||
                memcmp(chunkID, "PHY ", 4) == 0 ||
                memcmp(chunkID, "PHY4", 4) == 0) {
       bool isPhy4 = (memcmp(chunkID, "PHY4", 4) == 0);
-      YAMEN_CORE_INFO("C3PhyLoader: Loading physics mesh '{}' ({} bytes)",
-                      std::string(chunkID, 4), chunkSize);
-      if (!ParsePhysicsChunk(data, offset, size, outPhy, isPhy4)) {
-        if (outPhy.vertices.empty()) {
-          YAMEN_CORE_ERROR("C3PhyLoader: Failed to parse physics chunk and no "
-                           "vertices loaded");
-          return false;
-        } else {
-          YAMEN_CORE_WARN("C3PhyLoader: Partial physics load - continuing with "
-                          "existing mesh");
-        }
-      }
-    } else if (memcmp(chunkID, "MAXF", 4) == 0 ||
-               memcmp(chunkID, "PTCL", 4) == 0) {
-      YAMEN_CORE_INFO("C3PhyLoader: Skipping known chunk: {}",
+      YAMEN_CORE_INFO("C3PhyLoader: Loading physics mesh '{}'",
                       std::string(chunkID, 4));
-    } else {
-      YAMEN_CORE_WARN("C3PhyLoader: Unknown chunk: {}{}{}{} ({} bytes)",
-                      chunkID[0], chunkID[1], chunkID[2], chunkID[3],
-                      chunkSize);
+      ParsePhysicsChunk(data, offset, size, outPhy, isPhy4);
     }
 
     offset = chunkEnd;
   }
 
-  // Calculate inverse bind pose from frame 0
-  /*
+  /// =============================================================
+  // FIX: CALCULATE INVERSE BIND POSE (SANITIZED)
+  // =============================================================
   if (outPhy.motion && !outPhy.motion->keyframes.empty() &&
       outPhy.motion->boneCount > 0) {
+
     const auto &frame0 = outPhy.motion->keyframes[0];
-    if (frame0.boneMatrices.size() == outPhy.motion->boneCount) {
-      outPhy.invBindMatrices.resize(outPhy.motion->boneCount);
-      for (size_t i = 0; i < outPhy.motion->boneCount; ++i) {
-        outPhy.invBindMatrices[i] = glm::inverse(frame0.boneMatrices[i]);
-      }
-      YAMEN_CORE_INFO(
-          "C3PhyLoader: Generated {} inverse bind pose matrices from frame 0",
-          outPhy.invBindMatrices.size());
+    outPhy.invBindMatrices.resize(outPhy.motion->boneCount);
+
+    for (size_t i = 0; i < outPhy.motion->boneCount; ++i) {
+      glm::mat4 bm = frame0.boneMatrices[i];
+
+      // Manual Scale Stripping (Extract Columns)
+      glm::vec3 right = glm::vec3(bm[0]);
+      glm::vec3 up = glm::vec3(bm[1]);
+      glm::vec3 fwd = glm::vec3(bm[2]);
+      glm::vec3 pos = glm::vec3(bm[3]);
+
+      // Safe Normalize
+      if (glm::length(right) > 0.0001f)
+        right = glm::normalize(right);
+      else
+        right = glm::vec3(1, 0, 0);
+      if (glm::length(up) > 0.0001f)
+        up = glm::normalize(up);
+      else
+        up = glm::vec3(0, 1, 0);
+      if (glm::length(fwd) > 0.0001f)
+        fwd = glm::normalize(fwd);
+      else
+        fwd = glm::vec3(0, 0, 1);
+
+      // Reconstruct sanitized matrix
+      glm::mat4 sanitized(1.0f);
+      sanitized[0] = glm::vec4(right, 0.0f);
+      sanitized[1] = glm::vec4(up, 0.0f);
+      sanitized[2] = glm::vec4(fwd, 0.0f);
+      sanitized[3] = glm::vec4(pos, 1.0f);
+
+      // Invert
+      outPhy.invBindMatrices[i] = glm::inverse(sanitized);
     }
   }
-  */
 
   YAMEN_CORE_INFO("C3PhyLoader: Successfully loaded PHY");
-  YAMEN_CORE_INFO("   Vertices: {} | Triangles: {} | Bones: {}",
-                  outPhy.vertices.size(),
-                  outPhy.indices.empty() ? 0 : outPhy.indices.size() / 3,
-                  outPhy.motion ? outPhy.motion->boneCount : 0);
-
   return true;
 }
 
@@ -219,9 +216,29 @@ bool C3PhyLoader::ParseKeyframesKKEY(const uint8_t *data, size_t &offset,
       return false;
     kf.boneMatrices.resize(motion.boneCount);
     for (uint32_t b = 0; b < motion.boneCount; ++b) {
-      if (!Read(data, offset, fileSize, kf.boneMatrices[b]))
+      // FIX: KKEY is 3x4 (48 bytes) like Legacy
+      struct Matrix3x4 {
+        float m[12];
+      } mat3x4;
+      if (!Read(data, offset, fileSize, mat3x4))
         return false;
-      kf.boneMatrices[b] = glm::transpose(kf.boneMatrices[b]);
+
+      glm::mat4 m(1.0f);
+      m[0][0] = mat3x4.m[0];
+      m[0][1] = mat3x4.m[1];
+      m[0][2] = mat3x4.m[2];
+      m[0][3] = mat3x4.m[3];
+      m[1][0] = mat3x4.m[4];
+      m[1][1] = mat3x4.m[5];
+      m[1][2] = mat3x4.m[6];
+      m[1][3] = mat3x4.m[7];
+      m[2][0] = mat3x4.m[8];
+      m[2][1] = mat3x4.m[9];
+      m[2][2] = mat3x4.m[10];
+      m[2][3] = mat3x4.m[11];
+
+      // Transpose to get Column-Major with Translation in Col 3
+      kf.boneMatrices[b] = glm::transpose(m);
     }
   }
   YAMEN_CORE_INFO("C3PhyLoader: Loaded {} KKEY keyframes",
@@ -241,11 +258,15 @@ bool C3PhyLoader::ParseKeyframesXKEY(const uint8_t *data, size_t &offset,
     if (!Read(data, offset, fileSize, frame16))
       return false;
     kf.framePosition = frame16;
+
     kf.boneMatrices.resize(motion.boneCount);
     for (uint32_t b = 0; b < motion.boneCount; ++b) {
       TidyMatrix tidy;
       if (!Read(data, offset, fileSize, tidy))
         return false;
+
+      // FIX: DO NOT TRANSPOSE XKEY
+      // TidyMatrix::ToMat4() already returns a correct GLM matrix
       kf.boneMatrices[b] = tidy.ToMat4();
     }
   }
@@ -266,11 +287,15 @@ bool C3PhyLoader::ParseKeyframesZKEY(const uint8_t *data, size_t &offset,
     if (!Read(data, offset, fileSize, frame16))
       return false;
     kf.framePosition = frame16;
+
     kf.boneMatrices.resize(motion.boneCount);
     for (uint32_t b = 0; b < motion.boneCount; ++b) {
       DivInfo div;
       if (!Read(data, offset, fileSize, div))
         return false;
+
+      // FIX: DO NOT TRANSPOSE ZKEY
+      // DivInfo::ToMat4() already returns a correct GLM matrix
       kf.boneMatrices[b] = div.ToMat4();
     }
   }
@@ -290,7 +315,6 @@ bool C3PhyLoader::ParseKeyframesLegacy(const uint8_t *data, size_t &offset,
     kf.boneMatrices.resize(motion.boneCount);
     for (uint32_t b = 0; b < motion.boneCount; ++b) {
       // Legacy C3 matrices are 3x4 (48 bytes), NOT 4x4 (64 bytes)
-      // We must read 12 floats and construct the matrix
       struct Matrix3x4 {
         float m[12];
       } mat3x4;
@@ -300,40 +324,20 @@ bool C3PhyLoader::ParseKeyframesLegacy(const uint8_t *data, size_t &offset,
         return false;
       }
 
-      // Construct 4x4 matrix from 3x4 data
-      // Assuming Row-Major storage in file:
-      // Row 0: m[0], m[1], m[2], m[3]
-      // Row 1: m[4], m[5], m[6], m[7]
-      // Row 2: m[8], m[9], m[10], m[11]
-      // Row 3: 0, 0, 0, 1
-
-      // GLM is Column-Major, so we construct it carefully.
-      // If the file is Row-Major 3x4 (standard D3D9):
-      // We can load it into a glm::mat4 and then Transpose it?
-      // Or construct it directly.
-      // Let's construct a temporary row-major matrix and transpose it to be
-      // safe/standard.
-
       glm::mat4 m(1.0f);
-      // Row 0
       m[0][0] = mat3x4.m[0];
       m[0][1] = mat3x4.m[1];
       m[0][2] = mat3x4.m[2];
       m[0][3] = mat3x4.m[3];
-      // Row 1
       m[1][0] = mat3x4.m[4];
       m[1][1] = mat3x4.m[5];
       m[1][2] = mat3x4.m[6];
       m[1][3] = mat3x4.m[7];
-      // Row 2
       m[2][0] = mat3x4.m[8];
       m[2][1] = mat3x4.m[9];
       m[2][2] = mat3x4.m[10];
       m[2][3] = mat3x4.m[11];
 
-      // Current 'm' has Translation in Column 0 (m[0][3]).
-      // We need Translation in Column 3.
-      // glm::transpose swaps Rows and Cols, moving Row 3 (Tx,Ty,Tz,1) to Col 3.
       kf.boneMatrices[b] = glm::transpose(m);
     }
   }
@@ -386,12 +390,29 @@ bool C3PhyLoader::ParsePhysicsChunk(const uint8_t *data, size_t &offset,
     name.assign(reinterpret_cast<const char *>(data + offset), nameLen);
     offset += nameLen;
   }
-  YAMEN_CORE_INFO("   Mesh name: '{}'", name);
+
+  // FILTER: Skip unwanted meshes
+  std::string lowerName = name;
+  std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
+                 ::tolower);
+
+  if (lowerName.find("box") != std::string::npos ||
+      lowerName.find("bound") != std::string::npos ||
+      lowerName.find("shadow") != std::string::npos ||
+      lowerName.find("collision") != std::string::npos ||
+      lowerName.find("dummy") != std::string::npos) {
+    YAMEN_CORE_WARN("   Skipping auxiliary mesh: '{}'", name);
+    return true;
+  }
+
+  YAMEN_CORE_INFO("   Loading Mesh: '{}'", name);
 
   uint32_t blendCount = 0;
   if (!Read(data, offset, fileSize, blendCount))
     return false;
   phy.blendCount = blendCount;
+
+  YAMEN_CORE_INFO("   BlendCount: {}", blendCount);
 
   if (!Read(data, offset, fileSize, phy.normalVertexCount))
     return false;
@@ -409,8 +430,8 @@ bool C3PhyLoader::ParsePhysicsChunk(const uint8_t *data, size_t &offset,
 
   uint32_t attachBone = GetBoneIndexForMesh(name);
 
-  if (isPhy4 || blendCount == 0) {
-    // 40-byte fixed format: pos(12) + norm(12) + uv(8) + pad(8)
+  if (blendCount == 0) {
+    // Rigid vertices: 40-byte format
     const size_t stride = 40;
     if (offset + totalVerts * stride > fileSize)
       return false;
@@ -430,31 +451,79 @@ bool C3PhyLoader::ParsePhysicsChunk(const uint8_t *data, size_t &offset,
       offset += stride;
     }
   } else {
-    // Blended format
-    size_t stride = blendCount * 4 + blendCount * 4 + 12 + 12;
-    if (offset + totalVerts * stride > fileSize)
+    // Blended vertices: 40-byte format (CompactVertex)
+    // Reference Layout: Pos(12) | Normal(12) | UV(8) | BoneIdx(4) | Color(4)
+    const size_t stride = 40;
+    YAMEN_CORE_INFO("   Blended vertex stride: {} bytes (Compact Format)",
+                    stride);
+
+    if (offset + totalVerts * stride > fileSize) {
+      YAMEN_CORE_ERROR("   Not enough data for blended vertices!");
       return false;
+    }
+
+    struct CompactVertex {
+      float x, y, z;    // Pos
+      float nx, ny, nz; // Normal
+      float u, v;       // UV
+      uint32_t boneIdx; // Packed Bone Indices
+      uint32_t color;   // Color
+    };
 
     for (uint32_t i = 0; i < totalVerts; ++i) {
-      const uint8_t *v = data + offset;
+      CompactVertex cv;
+      if (!Read(data, offset, fileSize, cv))
+        return false;
+
       auto &vert = phy.vertices[baseVertIndex + i];
 
-      for (uint32_t b = 0; b < blendCount && b < 4; ++b)
-        vert.boneIndices[b] = reinterpret_cast<const uint32_t *>(v)[b];
-      for (uint32_t b = blendCount; b < 4; ++b)
-        vert.boneIndices[b] = 0;
+      // Position
+      vert.position = glm::vec3(cv.x, cv.y, cv.z);
 
-      const float *w = reinterpret_cast<const float *>(v + blendCount * 4);
-      for (uint32_t b = 0; b < blendCount && b < 4; ++b)
-        vert.boneWeights[b] = w[b];
-      for (uint32_t b = blendCount; b < 4; ++b)
-        vert.boneWeights[b] = 0.0f;
+      // Normal
+      vert.normal = glm::vec3(cv.nx, cv.ny, cv.nz);
 
-      memcpy(&vert.position, v + blendCount * 8, 12);
-      memcpy(&vert.normal, v + blendCount * 8 + 12, 12);
-      vert.texCoord = glm::vec2(0.0f);
+      // UV
+      vert.texCoord = glm::vec2(cv.u, cv.v);
 
-      offset += stride;
+      // Bones (Unpack from boneIdx)
+      // Reference code: v.boneIndices[0] = cv.boneIdx & 0xFF;
+      //                 v.boneIndices[1] = (cv.boneIdx >> 8) & 0xFF;
+      vert.boneIndices[0] = cv.boneIdx & 0xFF;
+      vert.boneIndices[1] = (cv.boneIdx >> 8) & 0xFF;
+      vert.boneIndices[2] = 0;
+      vert.boneIndices[3] = 0;
+
+      // Weights
+      // Reference code sets w[0]=1.0, w[1]=0.0.
+      // But since we have 2 bones, we should probably distribute weights?
+      // For now, let's stick to reference to get the SHAPE right.
+      // If the mesh distorts, we can tweak weights later.
+      // Actually, if blendCount is 2, we expect 2 weights.
+      // If the file only stores indices, maybe weights are implicit (0.5/0.5)?
+      // Or maybe the reference code is just for rigid meshes.
+      // Let's try 1.0/0.0 for now to ensure stability, or 0.5/0.5 if both
+      // indices are valid.
+
+      if (vert.boneIndices[1] != 0 &&
+          vert.boneIndices[1] != vert.boneIndices[0]) {
+        vert.boneWeights[0] = 0.5f;
+        vert.boneWeights[1] = 0.5f;
+      } else {
+        vert.boneWeights[0] = 1.0f;
+        vert.boneWeights[1] = 0.0f;
+      }
+      vert.boneWeights[2] = 0.0f;
+      vert.boneWeights[3] = 0.0f;
+
+      // Debug first vertex
+      if (i == 0) {
+        YAMEN_CORE_INFO("   First vertex: Bones=[{},{}], "
+                        "Weights=[{:.2f},{:.2f}], Pos=[{:.2f},{:.2f},{:.2f}]",
+                        vert.boneIndices[0], vert.boneIndices[1],
+                        vert.boneWeights[0], vert.boneWeights[1],
+                        vert.position.x, vert.position.y, vert.position.z);
+      }
     }
   }
 
@@ -497,6 +566,7 @@ void C3PhyLoader::InterpolateBones(const C3Motion &motion, float frame,
   float maxFrame = motion.keyframes.back().framePosition;
   frame = glm::clamp(frame, 0.0f, maxFrame);
 
+  // Find keyframes
   size_t kf1 = 0, kf2 = 0;
   for (size_t i = 0; i < motion.keyframes.size(); ++i) {
     if (motion.keyframes[i].framePosition <= frame)
@@ -509,6 +579,7 @@ void C3PhyLoader::InterpolateBones(const C3Motion &motion, float frame,
   if (kf2 >= motion.keyframes.size())
     kf2 = kf1;
 
+  // Interpolation factor
   float t = 0.0f;
   if (kf1 != kf2) {
     float f1 = static_cast<float>(motion.keyframes[kf1].framePosition);
@@ -517,28 +588,49 @@ void C3PhyLoader::InterpolateBones(const C3Motion &motion, float frame,
       t = (frame - f1) / (f2 - f1);
   }
 
+  // Interpolate
   for (uint32_t b = 0; b < motion.boneCount; ++b) {
     const glm::mat4 &m1 = motion.keyframes[kf1].boneMatrices[b];
     const glm::mat4 &m2 = motion.keyframes[kf2].boneMatrices[b];
 
-    glm::vec3 pos1, pos2, scale1, scale2, skew;
-    glm::quat rot1, rot2;
-    glm::vec4 persp;
+    glm::vec3 pos1 = glm::vec3(m1[3]);
+    glm::vec3 pos2 = glm::vec3(m2[3]);
 
-    glm::decompose(m1, scale1, rot1, pos1, skew, persp);
-    glm::decompose(m2, scale2, rot2, pos2, skew, persp);
+    auto GetRot = [](const glm::mat4 &m) {
+      glm::vec3 r = glm::vec3(m[0]);
+      glm::vec3 u = glm::vec3(m[1]);
+      glm::vec3 f = glm::vec3(m[2]);
+
+      if (glm::length(r) > 1e-5f)
+        r = glm::normalize(r);
+      else
+        r = glm::vec3(1, 0, 0);
+      if (glm::length(u) > 1e-5f)
+        u = glm::normalize(u);
+      else
+        u = glm::vec3(0, 1, 0);
+      if (glm::length(f) > 1e-5f)
+        f = glm::normalize(f);
+      else
+        f = glm::vec3(0, 0, 1);
+
+      glm::mat3 rotMat(r, u, f);
+      return glm::quat_cast(rotMat);
+    };
+
+    glm::quat rot1 = GetRot(m1);
+    glm::quat rot2 = GetRot(m2);
 
     if (glm::dot(rot1, rot2) < 0.0f)
       rot2 = -rot2;
 
     glm::quat rot = glm::slerp(rot1, rot2, t);
     glm::vec3 pos = glm::mix(pos1, pos2, t);
-    glm::vec3 scale = glm::mix(scale1, scale2, t);
 
-    outMatrices[b] = glm::translate(glm::mat4(1.0f), pos) *
-                     glm::mat4_cast(rot) * glm::scale(glm::mat4(1.0f), scale);
+    outMatrices[b] = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
   }
 }
+
 bool C3PhyLoader::ReadString(const uint8_t *data, size_t &offset,
                              size_t dataSize, std::string &out) {
   uint32_t len = 0;
@@ -550,5 +642,6 @@ bool C3PhyLoader::ReadString(const uint8_t *data, size_t &offset,
   offset += len;
   return true;
 }
+
 } // namespace Assets
 } // namespace Yamen

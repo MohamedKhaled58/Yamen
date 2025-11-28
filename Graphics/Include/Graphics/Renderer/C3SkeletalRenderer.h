@@ -39,25 +39,13 @@ public:
   bool Initialize();
 
   /**
-   * @brief Set bone transformation matrices
-   * @param bones Array of 3x4 bone matrices (stored as 3 vec4 per matrix)
-   * @param count Number of bones (max 70)
-   *
-   * Each bone matrix is a 3x4 transformation matrix stored as 3 consecutive
-   * vec4: bone[0] = [m00, m01, m02, m03]  (row 0 + translation.x) bone[1] =
-   * [m10, m11, m12, m13]  (row 1 + translation.y) bone[2] = [m20, m21, m22,
-   * m23]  (row 2 + translation.z)
-   */
-  void SetBoneMatrices(const glm::vec4 *bones, uint32_t count);
-
-  /**
    * @brief Set bone transformation matrices from standard 4x4 matrices
    * @param matrices Array of 4x4 matrices
    * @param count Number of matrices (max 70)
    *
    * Converts standard 4x4 matrices to C3 format (3 vec4 per matrix)
    */
-  void SetBoneMatricesFromMat4(const glm::mat4 *matrices, uint32_t count);
+  void SetBoneMatrices(const glm::mat4 *matrices, uint32_t count);
 
   /**
    * @brief Set UV animation offset
