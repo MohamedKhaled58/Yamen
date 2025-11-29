@@ -2,6 +2,7 @@
 #include "Core/Logging/Logger.h"
 #include "Platform/Input.h"
 #include <d3d11.h>
+#include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
@@ -35,27 +36,23 @@ bool C3AnimationDemoScene::Initialize() {
     return false;
   }
 
-  // FIXED: Used relative paths "Assets/..." instead of absolute "C:/..."
-  m_GhostModels = {
-      {entt::null, "Base Model",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/086/100001.c3", false, nullptr},
-      {entt::null, "Standby",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/100.c3", false, nullptr},
-      {entt::null, "Rest", "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/101.c3",
-       false, nullptr},
-      {entt::null, "Walk Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/110.c3", false, nullptr},
-      {entt::null, "Walk Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/111.c3", false, nullptr},
-      {entt::null, "Run Left",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/120.c3", false, nullptr},
-      {entt::null, "Run Right",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/121.c3", false, nullptr},
-      {entt::null, "Attack",
-       "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/085/350.c3", false, nullptr},
-  };
+  // Auto-load all C3 files from directory
+  std::string modelDir = "C:/dev/C3Renderer/Yamen/Assets/C3/ghost/";
 
-  LoadAllModels();
+  for (const auto &entry : std::filesystem::directory_iterator(modelDir)) {
+    if (entry.path().extension() == ".c3") {
+      std::string filename = entry.path().stem().string();
+      m_GhostModels.push_back(
+          {entt::null, filename, entry.path().string(), false, nullptr});
+    }
+  }
+
+  std::sort(
+      m_GhostModels.begin(), m_GhostModels.end(),
+      [](const auto &a, const auto &b) { return a.filepath < b.filepath; });
+
+  YAMEN_CORE_INFO("Found {} C3 models", m_GhostModels.size());
+  // LoadAllModels();
   SwitchToModel(0);
 
   m_ModelScale = 2.8f;   // make him HUGE and terrifying
@@ -90,7 +87,6 @@ void C3AnimationDemoScene::LoadAllModels() {
                   m_Registry.try_get<ECS::SkeletalAnimationComponent>(e)) {
             model.motion = otherAnim->motion;
           }
-            
 
           // Hide mesh so only base model is visible
           if (auto *mesh = m_Registry.try_get<ECS::C3MeshComponent>(e))
@@ -99,22 +95,23 @@ void C3AnimationDemoScene::LoadAllModels() {
 
         // Calculate Inverse Bind Matrices from base model's first keyframe
         if (anim->motion && !anim->motion->keyframes.empty()) {
-            const auto& bindFrame = anim->motion->keyframes[0];
-            anim->inverseBindMatrices.resize(anim->motion->boneCount);
+          const auto &bindFrame = anim->motion->keyframes[0];
+          anim->inverseBindMatrices.resize(anim->motion->boneCount);
 
-            for (size_t b = 0; b < anim->motion->boneCount; ++b) {
-                const glm::mat4& bindMatrix = bindFrame.boneMatrices[b];
-                float det = glm::determinant(bindMatrix);
+          for (size_t b = 0; b < anim->motion->boneCount; ++b) {
+            const glm::mat4 &bindMatrix = bindFrame.boneMatrices[b];
+            float det = glm::determinant(bindMatrix);
 
-                if (std::abs(det) > 1e-6f) {
-                    anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
-                }
-                else {
-                    YAMEN_CORE_WARN("Bind pose bone {} is singular, using identity", b);
-                    anim->inverseBindMatrices[b] = glm::mat4(1.0f);
-                }
+            if (std::abs(det) > 1e-6f) {
+              anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
+            } else {
+              YAMEN_CORE_WARN("Bind pose bone {} is singular, using identity",
+                              b);
+              anim->inverseBindMatrices[b] = glm::mat4(1.0f);
             }
-            YAMEN_CORE_INFO("Calculated {} inverse bind matrices", anim->motion->boneCount);
+          }
+          YAMEN_CORE_INFO("Calculated {} inverse bind matrices",
+                          anim->motion->boneCount);
         }
       }
     }
@@ -128,11 +125,9 @@ void C3AnimationDemoScene::Update(float deltaTime) {
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Right))
     m_CameraAngle += 45.0f * deltaTime;
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Up))
-      m_CameraDistance =
-          std::max(100.0f, m_CameraDistance - 100.0f * deltaTime);
+    m_CameraDistance = std::max(100.0f, m_CameraDistance - 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::Down))
-      m_CameraDistance =
-          std::min(3000.0f, m_CameraDistance + 100.0f * deltaTime);
+    m_CameraDistance = std::min(3000.0f, m_CameraDistance + 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageUp))
     m_CameraHeight = std::min(1000.0f, m_CameraHeight + 100.0f * deltaTime);
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::PageDown))
@@ -244,31 +239,49 @@ void C3AnimationDemoScene::RenderImGui() {
 }
 
 void C3AnimationDemoScene::SwitchToModel(int index) {
-  if (index < 0 || index >= (int)m_GhostModels.size() ||
-      !m_GhostModels[index].isLoaded)
+  if (index < 0 || index >= (int)m_GhostModels.size())
     return;
+
+  // Load model on-demand if not loaded
+  if (!m_GhostModels[index].isLoaded) {
+    // Unload previous model first to save memory
+
+    // Load new model
+    m_BaseEntity = Client::C3ModelLoader::LoadModel(
+        m_Registry, m_Device, m_GhostModels[index].filepath);
+    if (m_BaseEntity != entt::null) {
+      m_GhostModels[index].isLoaded = true;
+      m_GhostModels[index].entity = m_BaseEntity;
+
+      // Calculate InvBind for this model
+      if (auto *anim = m_Registry.try_get<ECS::SkeletalAnimationComponent>(
+              m_BaseEntity)) {
+        if (anim->motion && !anim->motion->keyframes.empty()) {
+          const auto &bindFrame = anim->motion->keyframes[0];
+          anim->inverseBindMatrices.resize(anim->motion->boneCount);
+
+          for (size_t b = 0; b < anim->motion->boneCount; ++b) {
+            const glm::mat4 &bindMatrix = bindFrame.boneMatrices[b];
+            float det = glm::determinant(bindMatrix);
+
+            if (std::abs(det) > 1e-6f) {
+              anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
+            } else {
+              anim->inverseBindMatrices[b] = glm::mat4(1.0f);
+            }
+          }
+        }
+
+        if (anim->boneMatrices.size() != anim->motion->boneCount) {
+          anim->boneMatrices.assign(anim->motion->boneCount, glm::mat4(1.0f));
+        }
+      }
+
+      YAMEN_CORE_INFO("Loaded model -> {}", m_GhostModels[index].name);
+    }
+  }
 
   m_CurrentModelIndex = index;
-
-  if (m_BaseEntity == entt::null)
-    return;
-
-  auto *anim =
-      m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
-  if (!anim || !m_GhostModels[index].motion)
-    return;
-
-  if (anim->motion != m_GhostModels[index].motion) {
-    anim->motion = m_GhostModels[index].motion;
-    anim->currentFrame = 0.0f;
-
-    if (anim->boneMatrices.size() != anim->motion->boneCount) {
-      // FIXED: Initialize with Identity matrices, not zeroes
-      anim->boneMatrices.assign(anim->motion->boneCount, glm::mat4(1.0f));
-    }
-
-    YAMEN_CORE_INFO("Switched animation -> {}", m_GhostModels[index].name);
-  }
 }
 
 void C3AnimationDemoScene::UpdateCamera() {
