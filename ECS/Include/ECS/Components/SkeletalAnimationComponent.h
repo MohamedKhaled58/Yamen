@@ -1,15 +1,19 @@
 #pragma once
 
 #include "AssetsC3/C3PhyLoader.h"
+#include <Core/Math/Math.h>
 #include <Graphics/Texture/Texture2D.h>
 #include <memory>
 #include <string>
+
 
 namespace Yamen::Graphics {
 class Buffer;
 }
 
 namespace Yamen::ECS {
+
+using namespace Yamen::Core;
 
 /**
  * @brief Component for skeletal animation state
@@ -24,9 +28,9 @@ struct SkeletalAnimationComponent {
   bool isPlaying;      // Playback state
   bool loop;           // Loop animation
 
-  std::vector<glm::mat4> boneMatrices; // Current bone transformations (Global)
-  std::vector<glm::mat4> inverseBindMatrices; // Inverse Bind Pose Matrices
-  std::vector<glm::mat4>
+  std::vector<mat4> boneMatrices; // Current bone transformations (Global)
+  std::vector<mat4> inverseBindMatrices; // Inverse Bind Pose Matrices
+  std::vector<mat4>
       finalBoneMatrices; // Final Skinning Matrices (Global * InvBind)
 
   SkeletalAnimationComponent()

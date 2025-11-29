@@ -24,7 +24,6 @@ project "Client"
         "../World/Include",
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.fmt}",
-        "%{IncludeDirs.glm}",
         "%{IncludeDirs.entt}",
         "%{IncludeDirs.imgui}",
         "../ThirdParty/ImGuizmo"

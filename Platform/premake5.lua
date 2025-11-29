@@ -17,7 +17,6 @@ project "Platform"
         "../EngineCore/Include",
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.fmt}",
-        "%{IncludeDirs.glm}",
         "%{IncludeDirs.imgui}"
     }
     

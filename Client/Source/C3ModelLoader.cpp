@@ -8,12 +8,14 @@
 
 namespace Yamen::Client {
 
+using namespace Yamen::Core;
+
 // Vertex format matching C3SkeletalRenderer input layout
 struct RenderVertex {
-  glm::vec3 pos;      // Offset 0
-  glm::vec4 color;    // Offset 12
-  glm::vec2 uv;       // Offset 28
-  glm::vec4 boneData; // Offset 36 (x,y=indices, z,w=weights)
+  vec3 pos;      // Offset 0
+  vec4 color;    // Offset 12
+  vec2 uv;       // Offset 28
+  vec4 boneData; // Offset 36 (x,y=indices, z,w=weights)
 };
 
 static_assert(sizeof(RenderVertex) == 52, "RenderVertex size mismatch");
@@ -121,7 +123,7 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
 
     // Initialize bone matrices
     if (phy->motion->boneCount > 0) {
-      animComp.boneMatrices.resize(phy->motion->boneCount, glm::mat4(1.0f));
+      animComp.boneMatrices.resize(phy->motion->boneCount, mat4(1.0f));
     }
 
     // Copy Inverse Bind Matrices
@@ -135,7 +137,7 @@ entt::entity C3ModelLoader::LoadModel(entt::registry &registry,
 
 void C3ModelLoader::RenderModel(entt::entity entity, entt::registry &registry,
                                 Graphics::C3SkeletalRenderer &renderer,
-                                const glm::mat4 &modelViewProj) {
+                                const mat4 &modelViewProj) {
   if (!registry.valid(entity)) {
     // YAMEN_CORE_WARN("RenderModel: Invalid entity");
     return;
@@ -151,7 +153,10 @@ void C3ModelLoader::RenderModel(entt::entity entity, entt::registry &registry,
     return;
   }
   if (!mesh->vertexBuffer) {
-    YAMEN_CORE_WARN("RenderModel: No vertex buffer");
+    static int logCounter = 0;
+    if (logCounter++ % 600 == 0) {
+        YAMEN_CORE_WARN("RenderModel: No vertex buffer (Entity {}) - likely animation-only file", (uint32_t)entity);
+    }
     return;
   }
 

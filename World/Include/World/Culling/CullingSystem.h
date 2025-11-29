@@ -1,43 +1,46 @@
 #pragma once
 
 #include "World/Culling/Frustum.h"
+#include <Core/Math/Math.h>
 #include <vector>
-#include <glm/glm.hpp>
+
 
 namespace Yamen::World {
 
-    struct CullableObject {
-        uint32_t EntityID;
-        glm::vec3 Position;
-        float Radius; // For sphere culling
-        glm::vec3 BoxMin; // For AABB culling
-        glm::vec3 BoxMax;
-        bool IsVisible;
-    };
+using namespace Yamen::Core;
 
-    class CullingSystem {
-    public:
-        CullingSystem() = default;
+struct CullableObject {
+  uint32_t EntityID;
+  vec3 Position;
+  float Radius; // For sphere culling
+  vec3 BoxMin;  // For AABB culling
+  vec3 BoxMax;
+  bool IsVisible;
+};
 
-        void Update(const glm::mat4& viewProj);
-        
-        // Add object to be culled
-        void RegisterObject(uint32_t entityID, const glm::vec3& pos, float radius);
-        void RegisterObject(uint32_t entityID, const glm::vec3& min, const glm::vec3& max);
-        
-        // Remove object
-        void UnregisterObject(uint32_t entityID);
+class CullingSystem {
+public:
+  CullingSystem() = default;
 
-        // Perform culling
-        void Cull();
+  void Update(const mat4 &viewProj);
 
-        // Get visible entities
-        const std::vector<uint32_t>& GetVisibleEntities() const;
+  // Add object to be culled
+  void RegisterObject(uint32_t entityID, const vec3 &pos, float radius);
+  void RegisterObject(uint32_t entityID, const vec3 &min, const vec3 &max);
 
-    private:
-        Frustum m_Frustum;
-        std::vector<CullableObject> m_Objects;
-        std::vector<uint32_t> m_VisibleEntities;
-    };
+  // Remove object
+  void UnregisterObject(uint32_t entityID);
+
+  // Perform culling
+  void Cull();
+
+  // Get visible entities
+  const std::vector<uint32_t> &GetVisibleEntities() const;
+
+private:
+  Frustum m_Frustum;
+  std::vector<CullableObject> m_Objects;
+  std::vector<uint32_t> m_VisibleEntities;
+};
 
 } // namespace Yamen::World

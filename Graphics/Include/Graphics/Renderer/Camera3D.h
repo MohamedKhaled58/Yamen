@@ -1,14 +1,11 @@
 #pragma once
 
 #include "Graphics/RHI/GraphicsDevice.h"
-
-// Force GLM to use 0 to 1 depth range (DirectX) instead of -1 to 1 (OpenGL)
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <Core/Math/Math.h>
 
 namespace Yamen::Graphics {
+
+using namespace Yamen::Core;
 
 /**
  * @brief 3D perspective camera
@@ -22,29 +19,27 @@ public:
   /**
    * @brief Set camera position
    */
-  void SetPosition(const glm::vec3 &position);
-  void SetPosition(float x, float y, float z) {
-    SetPosition(glm::vec3(x, y, z));
-  }
+  void SetPosition(const vec3 &position);
+  void SetPosition(float x, float y, float z) { SetPosition(vec3(x, y, z)); }
 
   /**
    * @brief Set camera rotation (Euler angles in radians)
    */
-  void SetRotation(const glm::vec3 &rotation);
+  void SetRotation(const vec3 &rotation);
   void SetRotation(float pitch, float yaw, float roll) {
-    SetRotation(glm::vec3(pitch, yaw, roll));
+    SetRotation(vec3(pitch, yaw, roll));
   }
 
   /**
    * @brief Set camera transform directly (Position + Rotation Quaternion)
    */
-  void SetTransform(const glm::vec3 &position, const glm::quat &rotation);
+  void SetTransform(const vec3 &position, const quat &rotation);
 
   /**
    * @brief Set camera to look at a target point
    */
-  void LookAt(const glm::vec3 &eye, const glm::vec3 &center,
-              const glm::vec3 &up = glm::vec3(0.0f, 1.0f, 0.0f));
+  void LookAt(const vec3 &eye, const vec3 &center,
+              const vec3 &up = vec3(0.0f, 1.0f, 0.0f));
 
   /**
    * @brief Set field of view (in degrees)
@@ -64,28 +59,28 @@ public:
   /**
    * @brief Get camera properties
    */
-  const glm::vec3 &GetPosition() const { return m_Position; }
-  const glm::vec3 &GetRotation() const { return m_Rotation; }
-  const glm::vec3 &GetForward() const { return m_Forward; }
-  const glm::vec3 &GetRight() const { return m_Right; }
-  const glm::vec3 &GetUp() const { return m_Up; }
+  const vec3 &GetPosition() const { return m_Position; }
+  const vec3 &GetRotation() const { return m_Rotation; }
+  const vec3 &GetForward() const { return m_Forward; }
+  const vec3 &GetRight() const { return m_Right; }
+  const vec3 &GetUp() const { return m_Up; }
   float GetFOV() const { return m_FOV; }
 
   /**
    * @brief Get view matrix
    */
-  const glm::mat4 &GetViewMatrix() const { return m_ViewMatrix; }
+  const mat4 &GetViewMatrix() const { return m_ViewMatrix; }
 
   /**
    * @brief Get projection matrix
    */
-  const glm::mat4 &GetProjectionMatrix() const { return m_ProjectionMatrix; }
+  const mat4 &GetProjectionMatrix() const { return m_ProjectionMatrix; }
 
   /**
    * @brief Get view-projection matrix
    */
-  glm::mat4 GetViewProjectionMatrix() const {
-    return m_ProjectionMatrix * m_ViewMatrix;
+  mat4 GetViewProjectionMatrix() const {
+    return m_ViewMatrix * m_ProjectionMatrix;
   }
 
 private:
@@ -93,19 +88,19 @@ private:
   void RecalculateProjectionMatrix();
   void UpdateVectors();
 
-  glm::vec3 m_Position;
-  glm::vec3 m_Rotation; // Pitch, Yaw, Roll
-  glm::vec3 m_Forward;
-  glm::vec3 m_Right;
-  glm::vec3 m_Up;
+  vec3 m_Position;
+  vec3 m_Rotation; // Pitch, Yaw, Roll
+  vec3 m_Forward;
+  vec3 m_Right;
+  vec3 m_Up;
 
   float m_FOV;
   float m_AspectRatio;
   float m_NearPlane;
   float m_FarPlane;
 
-  glm::mat4 m_ViewMatrix;
-  glm::mat4 m_ProjectionMatrix;
+  mat4 m_ViewMatrix;
+  mat4 m_ProjectionMatrix;
 };
 
 } // namespace Yamen::Graphics

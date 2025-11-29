@@ -1,6 +1,5 @@
 #include "Client/SceneManager.h"
 #include "Client/Application.h"
-#include "Client/Events/EngineEvents.h"
 
 namespace Yamen::Client {
 
@@ -51,8 +50,8 @@ namespace Yamen::Client {
         YAMEN_CLIENT_INFO("Scene '{}' loaded successfully", name);
 
         // Dispatch SceneChangedEvent
-        SceneChangedEvent event(name);
-        Application::Get().GetEventDispatcher().Dispatch(event);
+        //SceneChangedEvent event(name);
+        //Application::Get().GetEventDispatcher().Dispatch(event);
 
         return true;
     }

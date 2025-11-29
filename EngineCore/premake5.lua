@@ -4,7 +4,6 @@ project "EngineCore"
     cppdialect "C++latest"
     staticruntime "off"
 
-    defines { "GLM_ENABLE_EXPERIMENTAL" }
 
     
     targetdir ("../bin/" .. outputdir .. "/%{prj.name}")
@@ -19,7 +18,6 @@ project "EngineCore"
         "Include",
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.fmt}",
-        "%{IncludeDirs.glm}",
         "%{IncludeDirs.xxHash}"
     }
     

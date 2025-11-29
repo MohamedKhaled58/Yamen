@@ -17,7 +17,6 @@ project "World"
         "../EngineCore/Include",
         "../ECS/Include",
         "%{IncludeDirs.entt}",
-        "%{IncludeDirs.glm}",
         "%{IncludeDirs.spdlog}"
 
     }
@@ -28,7 +27,6 @@ project "World"
     }
 
     defines {
-        "GLM_ENABLE_EXPERIMENTAL",  -- ✅ ADD THIS
         "_CRT_SECURE_NO_WARNINGS"
     }
     

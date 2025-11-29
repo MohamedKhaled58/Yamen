@@ -31,7 +31,6 @@ workspace "YamenEngine"
     IncludeDirs["spdlog"]     = path.getabsolute("ThirdParty/spdlog/include")
     IncludeDirs["fmt"]        = path.getabsolute("ThirdParty/fmt/include")
     IncludeDirs["imgui"]      = path.getabsolute("ThirdParty/imgui")
-    IncludeDirs["glm"]        = path.getabsolute("ThirdParty/glm")
     IncludeDirs["DirectXTex"] = path.getabsolute("ThirdParty/DirectXTex/DirectXTex")
     IncludeDirs["lz4"]        = path.getabsolute("ThirdParty/lz4/lib")
     IncludeDirs["xxHash"]     = path.getabsolute("ThirdParty/xxHash")

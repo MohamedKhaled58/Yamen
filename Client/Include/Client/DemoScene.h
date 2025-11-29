@@ -3,6 +3,7 @@
 #include "Client/IScene.h"
 #include "Graphics/Graphics.h"
 #include <memory>
+#include <Core/Math/Math.h>
 
 namespace Yamen {
 
@@ -87,8 +88,8 @@ namespace Yamen {
         bool m_Show2D;
         bool m_Show3D = true;
         bool m_UseMaterials = true;
-        glm::vec3 m_LightDirection;
-        glm::vec3 m_LightColor;
+        Core::vec3 m_LightDirection;
+        Core::vec3 m_LightColor;
     };
 
 } // namespace Yamen

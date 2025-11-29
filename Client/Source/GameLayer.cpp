@@ -4,7 +4,6 @@
 #include <Core/Logging/Logger.h>
 #include <imgui.h>
 
-
 // Include scene headers for registration
 #include "Client/DemoScene.h"
 #include "Client/ECSScene.h"
@@ -12,7 +11,7 @@
 #include "Client/MultiCameraScene.h"
 #include "Client/PhysicsPlaygroundScene.h"
 #include "Client/Scenes/C3AnimationDemoScene.h"
-
+#include "Client/XPBDTestScene.h"
 
 namespace Yamen::Client {
 
@@ -57,7 +56,12 @@ void GameLayer::OnAttach() {
         return std::make_unique<C3AnimationDemoScene>(device);
       });
 
-  // Load default scene
+  m_SceneManager->RegisterScene(
+      "XPBD Physics Scene", [&device]() -> std::unique_ptr<IScene> {
+        return std::make_unique<XPBDTestScene>(device);
+      });
+
+  // Load default scene (ECS Scene is stable, XPBD can be selected from menu)
   if (!m_SceneManager->LoadScene("ECS Scene")) {
     YAMEN_CLIENT_ERROR("Failed to load default scene");
   }
@@ -94,9 +98,10 @@ void GameLayer::OnImGuiRender() {
                  ImGuiWindowFlags_NoCollapse |
                      ImGuiWindowFlags_AlwaysAutoResize);
 
-    const char *scenes[] = {"ECS Scene",     "Physics Playground",
-                            "Lighting Demo", "Multi-Camera Demo",
-                            "Legacy Demo",   "C3 Animation Demo"};
+    const char *scenes[] = {"ECS Scene",         "Physics Playground",
+                            "Lighting Demo",     "Multi-Camera Demo",
+                            "Legacy Demo",       "C3 Animation Demo",
+                            "XPBD Physics Scene"};
     static int currentScene = 0;
 
     if (ImGui::Combo("Active Scene", &currentScene, scenes,

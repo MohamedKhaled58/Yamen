@@ -61,4 +61,4 @@ processed/
 runtime/
 
 # Don't ignore ThirdParty (submodules)
-!ThirdParty/
+ThirdParty/

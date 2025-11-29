@@ -1,79 +1,74 @@
 #pragma once
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include <Core/Math/Math.h>
+#include <entt/entt.hpp>
 #include <string>
 #include <vector>
-#include <entt/entt.hpp>
+
 
 namespace Yamen::ECS {
 
-    /**
-     * @brief Tag component for entity identification
-     */
-    struct TagComponent {
-        std::string Tag;
+using namespace Yamen::Core;
 
-        TagComponent() = default;
-        TagComponent(const TagComponent&) = default;
-        TagComponent(const std::string& tag) : Tag(tag) {}
-    };
+/**
+ * @brief Tag component for entity identification
+ */
+struct TagComponent {
+  std::string Tag;
 
-    /**
-     * @brief Transform component for position, rotation, and scale
-     * 
-     * Uses quaternions for rotation to avoid gimbal lock.
-     * Provides cached transform matrix for performance.
-     */
-    struct TransformComponent {
-        glm::vec3 Translation = glm::vec3(0.0f);
-        glm::quat Rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f); // Identity quaternion
-        glm::vec3 Scale = glm::vec3(1.0f);
+  TagComponent() = default;
+  TagComponent(const TagComponent &) = default;
+  TagComponent(const std::string &tag) : Tag(tag) {}
+};
 
-        TransformComponent() = default;
-        TransformComponent(const TransformComponent&) = default;
-        TransformComponent(const glm::vec3& translation) : Translation(translation) {}
+/**
+ * @brief Transform component for position, rotation, and scale
+ *
+ * Uses quaternions for rotation to avoid gimbal lock.
+ * Provides cached transform matrix for performance.
+ */
+struct TransformComponent {
+  vec3 Translation = vec3(0.0f);
+  quat Rotation = quat(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion
+  vec3 Scale = vec3(1.0f);
 
-        glm::mat4 GetTransform() const {
-            return glm::translate(glm::mat4(1.0f), Translation)
-                 * glm::toMat4(Rotation)
-                 * glm::scale(glm::mat4(1.0f), Scale);
-        }
+  TransformComponent() = default;
+  TransformComponent(const TransformComponent &) = default;
+  TransformComponent(const vec3 &translation) : Translation(translation) {}
 
-        // Euler angle helpers (in radians)
-        void SetRotationEuler(const glm::vec3& euler) {
-            Rotation = glm::quat(euler);
-        }
+  mat4 GetTransform() const {
+    return Math::Translate(Translation) * Math::ToMat4(Rotation) *
+           Math::Scale(mat4(1.0f), Scale);
+  }
 
-        glm::vec3 GetRotationEuler() const {
-            return glm::eulerAngles(Rotation);
-        }
+  // Euler angle helpers (in radians)
+  void SetRotationEuler(const vec3 &euler) { Rotation = quat(euler); }
 
-        // Direction vectors
-        glm::vec3 GetForward() const {
-            return glm::normalize(Rotation * glm::vec3(0.0f, 0.0f, 1.0f));
-        }
+  vec3 GetRotationEuler() const { return Math::ToEulerAngles(Rotation); }
 
-        glm::vec3 GetRight() const {
-            return glm::normalize(Rotation * glm::vec3(1.0f, 0.0f, 0.0f));
-        }
+  // Direction vectors
+  vec3 GetForward() const {
+    return Math::Normalize(Math::Rotate(Rotation, vec3(0.0f, 0.0f, 1.0f)));
+  }
 
-        glm::vec3 GetUp() const {
-            return glm::normalize(Rotation * glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-    };
+  vec3 GetRight() const {
+    return Math::Normalize(Math::Rotate(Rotation, vec3(1.0f, 0.0f, 0.0f)));
+  }
 
-    /**
-     * @brief Hierarchy component for parent-child relationships
-     */
-    struct HierarchyComponent {
-        entt::entity Parent = entt::null;
-        std::vector<entt::entity> Children;
+  vec3 GetUp() const {
+    return Math::Normalize(Math::Rotate(Rotation, vec3(0.0f, 1.0f, 0.0f)));
+  }
+};
 
-        HierarchyComponent() = default;
-        HierarchyComponent(const HierarchyComponent&) = default;
-    };
+/**
+ * @brief Hierarchy component for parent-child relationships
+ */
+struct HierarchyComponent {
+  entt::entity Parent = entt::null;
+  std::vector<entt::entity> Children;
+
+  HierarchyComponent() = default;
+  HierarchyComponent(const HierarchyComponent &) = default;
+};
 
 } // namespace Yamen::ECS

@@ -1,6 +1,6 @@
 cbuffer CBPerObject : register(b0)
 {
-    matrix u_MVP;
+    float4x4 u_MVP;
 };
 
 struct VS_Input

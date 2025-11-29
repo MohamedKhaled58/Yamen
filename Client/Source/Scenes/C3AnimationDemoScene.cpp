@@ -1,12 +1,56 @@
 ﻿#include "Client/Scenes/C3AnimationDemoScene.h"
 #include "Core/Logging/Logger.h"
 #include "Platform/Input.h"
+#include <Core/Math/Math.h>
 #include <d3d11.h>
 #include <filesystem>
-#include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
 namespace Yamen {
+
+using namespace Core::Math;
+
+// 1. Add this helper at the top
+void C3AnimationDemoScene::SetModel(size_t index) {
+  if (index >= m_GhostModels.size())
+    return;
+
+  // Unload old
+  if (m_BaseEntity != entt::null) {
+    Client::C3ModelLoader::UnloadModel(m_BaseEntity, m_Registry);
+    m_BaseEntity = entt::null;
+  }
+
+  auto &model = m_GhostModels[index];
+  m_BaseEntity =
+      Client::C3ModelLoader::LoadModel(m_Registry, m_Device, model.filepath);
+
+  if (m_BaseEntity != entt::null) {
+    model.isLoaded = true;
+    model.entity = m_BaseEntity;
+    m_CurrentModelIndex = index;
+
+    // Calculate inverse bind matrices ONCE from base model (index 0 usually)
+    if (index == 0)
+      CalculateInverseBindMatrices();
+  }
+}
+
+// 2. Extract inverse bind calculation
+void C3AnimationDemoScene::CalculateInverseBindMatrices() {
+  auto *anim =
+      m_Registry.try_get<ECS::SkeletalAnimationComponent>(m_BaseEntity);
+  if (!anim || !anim->motion || anim->motion->keyframes.empty())
+    return;
+
+  const auto &bindFrame = anim->motion->keyframes[0];
+  anim->inverseBindMatrices.resize(anim->motion->boneCount);
+
+  for (size_t i = 0; i < anim->motion->boneCount; ++i) {
+    const mat4 &bind = bindFrame.boneMatrices[i];
+    anim->inverseBindMatrices[i] = Math::Inverse(bind);
+  }
+}
 
 C3AnimationDemoScene::C3AnimationDemoScene(Graphics::GraphicsDevice &device)
     : m_Device(device) {
@@ -14,7 +58,7 @@ C3AnimationDemoScene::C3AnimationDemoScene(Graphics::GraphicsDevice &device)
   m_CameraDistance = 1000.0f;
   m_CameraAngle = 0.0f;
   m_CameraHeight = 450.0f;
-  m_CameraTarget = glm::vec3(0.0f);
+  m_CameraTarget = vec3(0.0f);
   m_AnimationPaused = false;
   m_AnimationSpeed = 30.0f;
   m_ModelScale = 1.0f;
@@ -99,15 +143,15 @@ void C3AnimationDemoScene::LoadAllModels() {
           anim->inverseBindMatrices.resize(anim->motion->boneCount);
 
           for (size_t b = 0; b < anim->motion->boneCount; ++b) {
-            const glm::mat4 &bindMatrix = bindFrame.boneMatrices[b];
-            float det = glm::determinant(bindMatrix);
+            const mat4 &bindMatrix = bindFrame.boneMatrices[b];
+            float det = Math::Determinant(bindMatrix);
 
             if (std::abs(det) > 1e-6f) {
-              anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
+              anim->inverseBindMatrices[b] = Math::Inverse(bindMatrix);
             } else {
               YAMEN_CORE_WARN("Bind pose bone {} is singular, using identity",
                               b);
-              anim->inverseBindMatrices[b] = glm::mat4(1.0f);
+              anim->inverseBindMatrices[b] = mat4(1.0f);
             }
           }
           YAMEN_CORE_INFO("Calculated {} inverse bind matrices",
@@ -135,9 +179,9 @@ void C3AnimationDemoScene::Update(float deltaTime) {
 
   // WASD Camera Movement (Move Target)
   float moveSpeed = 500.0f * deltaTime;
-  float rad = glm::radians(m_CameraAngle);
-  glm::vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
-  glm::vec3 right(std::cos(rad), 0.0f, -std::sin(rad));
+  float rad = Math::Radians(m_CameraAngle);
+  vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
+  vec3 right(std::cos(rad), 0.0f, -std::sin(rad));
 
   if (Platform::Input::IsKeyPressed(Platform::KeyCode::W))
     m_CameraTarget += forward * moveSpeed;
@@ -182,20 +226,20 @@ void C3AnimationDemoScene::Render() {
   if (!m_SkeletalRenderer || m_BaseEntity == entt::null)
     return;
 
-  glm::mat4 view = m_Camera->GetViewMatrix();
-  glm::mat4 proj = m_Camera->GetProjectionMatrix();
+  mat4 view = m_Camera->GetViewMatrix();
+  mat4 proj = m_Camera->GetProjectionMatrix();
 
   RenderDebugGrid(view, proj);
   if (m_ShowSkeleton)
     RenderDebugSkeleton(view, proj);
 
-  glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
+  mat4 model = Math::Scale(mat4(1.0f), vec3(m_ModelScale));
 
   // Calculate MVP
-  glm::mat4 mvp = proj * view * model;
+  mat4 mvp = view * model * proj;
 
   // FIXED: Transposed the MVP for the shader (DirectX 11 standard)
-  glm::mat4 mvpForShader = glm::transpose(mvp);
+  mat4 mvpForShader = Math::Transpose(mvp);
 
   Client::C3ModelLoader::RenderModel(m_BaseEntity, m_Registry,
                                      *m_SkeletalRenderer, mvpForShader);
@@ -261,19 +305,19 @@ void C3AnimationDemoScene::SwitchToModel(int index) {
           anim->inverseBindMatrices.resize(anim->motion->boneCount);
 
           for (size_t b = 0; b < anim->motion->boneCount; ++b) {
-            const glm::mat4 &bindMatrix = bindFrame.boneMatrices[b];
-            float det = glm::determinant(bindMatrix);
+            const mat4 &bindMatrix = bindFrame.boneMatrices[b];
+            float det = Math::Determinant(bindMatrix);
 
             if (std::abs(det) > 1e-6f) {
-              anim->inverseBindMatrices[b] = glm::inverse(bindMatrix);
+              anim->inverseBindMatrices[b] = Math::Inverse(bindMatrix);
             } else {
-              anim->inverseBindMatrices[b] = glm::mat4(1.0f);
+              anim->inverseBindMatrices[b] = mat4(1.0f);
             }
           }
         }
 
         if (anim->boneMatrices.size() != anim->motion->boneCount) {
-          anim->boneMatrices.assign(anim->motion->boneCount, glm::mat4(1.0f));
+          anim->boneMatrices.assign(anim->motion->boneCount, mat4(1.0f));
         }
       }
 
@@ -285,22 +329,21 @@ void C3AnimationDemoScene::SwitchToModel(int index) {
 }
 
 void C3AnimationDemoScene::UpdateCamera() {
-  float rad = glm::radians(m_CameraAngle);
+  float rad = Math::Radians(m_CameraAngle);
 
   // Perfect orbit camera — Ghost King stays dead center
-  glm::vec3 eye(m_CameraDistance * std::sin(rad), m_CameraHeight,
-                m_CameraDistance * std::cos(rad));
+  vec3 eye(m_CameraDistance * std::sin(rad), m_CameraHeight,
+           m_CameraDistance * std::cos(rad));
 
   // Add target offset (WASD movement)
   eye += m_CameraTarget;
 
-  glm::vec3 center = m_CameraTarget; // Look at this point
-  glm::vec3 up(0.0f, 1.0f, 0.0f);
+  vec3 center = m_CameraTarget; // Look at this point
+  vec3 up(0.0f, 1.0f, 0.0f);
 
   m_Camera->LookAt(eye, center, up);
 }
-void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
-                                           const glm::mat4 &proj) {
+void C3AnimationDemoScene::RenderDebugGrid(const mat4 &view, const mat4 &proj) {
   // Lazy init for shaders
   if (!m_LineShader) {
     m_LineShader = std::make_shared<Graphics::Shader>(m_Device);
@@ -327,14 +370,14 @@ void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
 
   if (!m_GridVertexBuffer) {
     struct Vertex {
-      glm::vec3 pos;
-      glm::vec4 color;
+      vec3 pos;
+      vec4 color;
     };
     std::vector<Vertex> verts;
     const int size = 20;
     const float s = 50.0f;
-    const glm::vec4 gray(0.5f, 0.5f, 0.5f, 1);
-    const glm::vec4 red(1, 0, 0, 1), blue(0, 0, 1, 1);
+    const vec4 gray(0.5f, 0.5f, 0.5f, 1);
+    const vec4 red(1, 0, 0, 1), blue(0, 0, 1, 1);
 
     for (int i = -size; i <= size; ++i)
       if (i != 0) {
@@ -363,8 +406,8 @@ void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
       m_DebugInputLayout->Bind();
 
     // FIXED: Use transpose for HLSL constant buffer
-    glm::mat4 mvp = glm::transpose(proj * view);
-
+    //mat4 mvp = Math::Transpose(view * proj);
+    mat4 mvp = Math::Transpose(view * proj);
     if (!m_GridConstantBuffer) {
       m_GridConstantBuffer = std::make_shared<Graphics::Buffer>(
           m_Device, Graphics::BufferType::Constant);
@@ -382,8 +425,8 @@ void C3AnimationDemoScene::RenderDebugGrid(const glm::mat4 &view,
   }
 }
 
-void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
-                                               const glm::mat4 &proj) {
+void C3AnimationDemoScene::RenderDebugSkeleton(const mat4 &view,
+                                               const mat4 &proj) {
   if (m_BaseEntity == entt::null || !m_ShowSkeleton)
     return;
 
@@ -397,7 +440,7 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
     YAMEN_CORE_INFO("Camera Pos: ({}, {}, {})", m_Camera->GetPosition().x,
                     m_Camera->GetPosition().y, m_Camera->GetPosition().z);
     if (!anim->boneMatrices.empty()) {
-      glm::vec3 b0 = glm::vec3(anim->boneMatrices[0][3]);
+      vec3 b0 = vec3(anim->boneMatrices[0][3]);
       YAMEN_CORE_INFO("Bone[0] Pos: ({}, {}, {})", b0.x, b0.y, b0.z);
     }
   }
@@ -407,16 +450,16 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
     m_DebugInputLayout->Bind();
 
   struct Vertex {
-    glm::vec3 pos;
-    glm::vec4 color;
+    vec3 pos;
+    vec4 color;
   };
 
   std::vector<Vertex> verts;
-  const glm::vec4 col(1, 1, 0, 1);
+  const vec4 col(1, 1, 0, 1);
   const float sz = 5.0f;
 
   for (const auto &m : anim->boneMatrices) {
-    glm::vec3 p = glm::vec3(m[3]);
+    vec3 p = vec3(m[3]);
 
     verts.push_back({{p.x - sz, p.y, p.z}, col});
     verts.push_back({{p.x + sz, p.y, p.z}, col});
@@ -438,14 +481,14 @@ void C3AnimationDemoScene::RenderDebugSkeleton(const glm::mat4 &view,
                                    (uint32_t)(verts.size() * sizeof(Vertex)));
   }
 
-  glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
-  glm::mat4 mvp = glm::transpose(proj * view * model);
+  mat4 model = Math::Scale(mat4(1.0f), vec3(m_ModelScale));
+  mat4 mvp = Math::Transpose(view * model * proj);
 
   if (!m_GridConstantBuffer) {
     m_GridConstantBuffer = std::make_shared<Graphics::Buffer>(
         m_Device, Graphics::BufferType::Constant);
     m_GridConstantBuffer->Create(&mvp, sizeof(mvp), 0,
-                                 Graphics::BufferUsage::Dynamic);
+        Graphics::BufferUsage::Dynamic);
   } else {
     m_GridConstantBuffer->Update(&mvp, sizeof(mvp));
   }

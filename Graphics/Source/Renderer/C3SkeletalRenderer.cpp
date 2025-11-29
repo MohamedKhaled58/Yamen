@@ -5,6 +5,8 @@
 
 namespace Yamen::Graphics {
 
+using namespace Yamen::Core;
+
 C3SkeletalRenderer::C3SkeletalRenderer(GraphicsDevice &device)
     : m_Device(device), m_PerObjectData{}, m_BoneData{} {}
 
@@ -44,15 +46,13 @@ bool C3SkeletalRenderer::Initialize() {
   for (uint32_t i = 0; i < MAX_BONES; ++i) {
     uint32_t offset = i * 3;
     // Identity 3x4 matrix
-    m_BoneData.c3_BoneMatrix[offset + 0] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
-    m_BoneData.c3_BoneMatrix[offset + 1] = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-    m_BoneData.c3_BoneMatrix[offset + 2] = glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+    m_BoneData.c3_BoneMatrix[offset + 0] = vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    m_BoneData.c3_BoneMatrix[offset + 1] = vec4(0.0f, 1.0f, 0.0f, 0.0f);
+    m_BoneData.c3_BoneMatrix[offset + 2] = vec4(0.0f, 0.0f, 1.0f, 0.0f);
   }
 
-
-
-  m_PerObjectData.c3_ModelViewProj = glm::mat4(1.0f);
-  m_PerObjectData.c3_UVAnimStep = glm::vec2(0.0f);
+  m_PerObjectData.c3_ModelViewProj = mat4(1.0f);
+  m_PerObjectData.c3_UVAnimStep = vec2(0.0f);
 
   // Create rasterizer state (Cull None)
   D3D11_RASTERIZER_DESC rasterDesc;
@@ -102,8 +102,7 @@ bool C3SkeletalRenderer::Initialize() {
   return true;
 }
 
-void C3SkeletalRenderer::SetBoneMatrices(const glm::mat4 *matrices,
-                                         uint32_t count) {
+void C3SkeletalRenderer::SetBoneMatrices(const mat4 *matrices, uint32_t count) {
   if (count > MAX_BONES) {
     count = MAX_BONES;
   }
@@ -111,16 +110,20 @@ void C3SkeletalRenderer::SetBoneMatrices(const glm::mat4 *matrices,
   // Debug: Log first 5 frames
   static int logCount = 0;
   if (logCount < 5 && count > 0) {
-      const glm::mat4& m = matrices[0];
-      YAMEN_CORE_INFO("Frame {} - Bone[0]: translation=({:.2f}, {:.2f}, {:.2f})",
-          logCount, m[3][0], m[3][1], m[3][2]);
-      logCount++;
+    const mat4 &m = matrices[0];
+    // In row-major, translation is usually in the last row (row 3),
+    // but C3 might be using a different convention or just storing it in the
+    // last column. Let's assume standard row-major where translation is in
+    // row 3. m[3][0], m[3][1], m[3][2]
+    YAMEN_CORE_INFO("Frame {} - Bone[0]: translation=({:.2f}, {:.2f}, {:.2f})",
+                    logCount, m[3][0], m[3][1], m[3][2]);
+    logCount++;
   }
 
   // Debug: Log first bone matrix
   static bool logged = false;
   if (!logged && count > 0) {
-    const glm::mat4 &m = matrices[0];
+    const mat4 &m = matrices[0];
     YAMEN_CORE_INFO("Bone[0] Matrix sent to shader:");
     YAMEN_CORE_INFO("  [{:.2f}, {:.2f}, {:.2f}, {:.2f}]", m[0][0], m[0][1],
                     m[0][2], m[0][3]);
@@ -134,29 +137,24 @@ void C3SkeletalRenderer::SetBoneMatrices(const glm::mat4 *matrices,
   }
 
   for (uint32_t i = 0; i < count; ++i) {
-    // GLM stores column-major: m[col][row]
-    // Shader expects 3 vec4s as rows: [row0, row1, row2]
-    // Each row is [x, y, z, translation_component]
-    const glm::mat4 &m = matrices[i];
+    const mat4 &m = matrices[i];
 
-    // Row 0: [m00, m10, m20, m30] (first row with translation.x)
-    m_BoneData.c3_BoneMatrix[i * 3 + 0] =
-        glm::vec4(m[0][0], m[1][0], m[2][0], m[3][0]);
-    // Row 1: [m01, m11, m21, m31] (second row with translation.y)
-    m_BoneData.c3_BoneMatrix[i * 3 + 1] =
-        glm::vec4(m[0][1], m[1][1], m[2][1], m[3][1]);
-    // Row 2: [m02, m12, m22, m32] (third row with translation.z)
-    m_BoneData.c3_BoneMatrix[i * 3 + 2] =
-        glm::vec4(m[0][2], m[1][2], m[2][2], m[3][2]);
+    // Transpose to get [Rx Ux Fx Tx] layout in rows
+    mat4 transposed = Math::Transpose(m);
+
+    m_BoneData.c3_BoneMatrix[i * 3 + 0] = transposed[0];
+    m_BoneData.c3_BoneMatrix[i * 3 + 1] = transposed[1];
+    m_BoneData.c3_BoneMatrix[i * 3 + 2] = transposed[2];
   }
 }
 
-void C3SkeletalRenderer::SetUVAnimationOffset(const glm::vec2 &offset) {
+void C3SkeletalRenderer::SetUVAnimationOffset(const vec2 &offset) {
   m_PerObjectData.c3_UVAnimStep = offset;
 }
 
-void C3SkeletalRenderer::SetModelViewProj(const glm::mat4 &mvp) {
-  m_PerObjectData.c3_ModelViewProj = mvp;
+void C3SkeletalRenderer::SetModelViewProj(const mat4 &mvp) {
+  // Transpose for HLSL column-major layout
+  m_PerObjectData.c3_ModelViewProj = Math::Transpose(mvp);
 }
 
 void C3SkeletalRenderer::SetTexture(Texture2D *texture) {

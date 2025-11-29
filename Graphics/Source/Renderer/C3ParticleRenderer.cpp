@@ -36,7 +36,7 @@ bool C3ParticleRenderer::Initialize() {
     return false;
   }
 
-  m_Constants.c3_ModelViewProj = glm::mat4(1.0f);
+  m_Constants.c3_ModelViewProj = mat4(1.0f);
 
   YAMEN_CORE_INFO("C3ParticleRenderer initialized successfully");
   return true;
@@ -46,11 +46,11 @@ void C3ParticleRenderer::SetShaderType(ParticleShaderType type) {
   m_CurrentShaderType = type;
 }
 
-void C3ParticleRenderer::SetProjection(const glm::mat4 &proj) {
+void C3ParticleRenderer::SetProjection(const mat4 &proj) {
   m_Constants.c3_ModelViewProj = proj;
 }
 
-void C3ParticleRenderer::SetModelViewProj(const glm::mat4 &mvp) {
+void C3ParticleRenderer::SetModelViewProj(const mat4 &mvp) {
   m_Constants.c3_ModelViewProj = mvp;
 }
 
@@ -80,13 +80,14 @@ void C3ParticleRenderer::Begin(uint32_t maxParticles) {
 
 void C3ParticleRenderer::AddParticle(const VertexParticle &particle) {
   if (!m_InBatch) {
-    YAMEN_CORE_WARN("C3ParticleRenderer::AddParticle called outside of Begin/End");
+    YAMEN_CORE_WARN(
+        "C3ParticleRenderer::AddParticle called outside of Begin/End");
     return;
   }
 
   if (m_Particles.size() >= m_MaxParticles) {
     YAMEN_CORE_WARN("C3ParticleRenderer: Max particles ({}) reached",
-                m_MaxParticles);
+                    m_MaxParticles);
     return;
   }
 

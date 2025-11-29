@@ -20,7 +20,6 @@ project "ECS"
         "../World/Include",
         "../AssetsC3/Include",
         "%{IncludeDirs.entt}",
-        "%{IncludeDirs.glm}",
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.imgui}",
         "../ThirdParty/ImGuizmo"

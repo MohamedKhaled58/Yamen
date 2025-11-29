@@ -5,13 +5,10 @@
 #include <fstream>
 #include <vector>
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
-
 namespace Yamen {
 namespace Assets {
+
+using namespace Yamen::Core;
 
 // ===================================================================
 // SAFE READ HELPER (Critical!)
@@ -129,37 +126,36 @@ bool C3PhyLoader::LoadFromMemory(const uint8_t *data, size_t size,
     outPhy.invBindMatrices.resize(outPhy.motion->boneCount);
 
     for (size_t i = 0; i < outPhy.motion->boneCount; ++i) {
-      glm::mat4 bm = frame0.boneMatrices[i];
+      mat4 bm = frame0.boneMatrices[i];
 
-      // Manual Scale Stripping (Extract Columns)
-      glm::vec3 right = glm::vec3(bm[0]);
-      glm::vec3 up = glm::vec3(bm[1]);
-      glm::vec3 fwd = glm::vec3(bm[2]);
-      glm::vec3 pos = glm::vec3(bm[3]);
+      // Manual Scale Stripping (Extract Columns/Rows)
+      // In Row-Major, m[0] is Row 0 (Right), m[1] is Row 1 (Up), m[2] is Row 2
+      // (Fwd)
+      vec3 right = vec3(bm[0]);
+      vec3 up = vec3(bm[1]);
+      vec3 fwd = vec3(bm[2]);
+      vec3 pos = vec3(bm[3]);
 
       // Safe Normalize
-      if (glm::length(right) > 0.0001f)
-        right = glm::normalize(right);
+      if (Math::Length(right) > 0.0001f)
+        right = Math::Normalize(right);
       else
-        right = glm::vec3(1, 0, 0);
-      if (glm::length(up) > 0.0001f)
-        up = glm::normalize(up);
+        right = vec3(1, 0, 0);
+      if (Math::Length(up) > 0.0001f)
+        up = Math::Normalize(up);
       else
-        up = glm::vec3(0, 1, 0);
-      if (glm::length(fwd) > 0.0001f)
-        fwd = glm::normalize(fwd);
+        up = vec3(0, 1, 0);
+      if (Math::Length(fwd) > 0.0001f)
+        fwd = Math::Normalize(fwd);
       else
-        fwd = glm::vec3(0, 0, 1);
+        fwd = vec3(0, 0, 1);
 
       // Reconstruct sanitized matrix
-      glm::mat4 sanitized(1.0f);
-      sanitized[0] = glm::vec4(right, 0.0f);
-      sanitized[1] = glm::vec4(up, 0.0f);
-      sanitized[2] = glm::vec4(fwd, 0.0f);
-      sanitized[3] = glm::vec4(pos, 1.0f);
+      mat4 sanitized(vec4(right, 0.0f), vec4(up, 0.0f), vec4(fwd, 0.0f),
+                     vec4(pos, 1.0f));
 
       // Invert
-      outPhy.invBindMatrices[i] = glm::inverse(sanitized);
+      outPhy.invBindMatrices[i] = Math::Inverse(sanitized);
     }
   }
 
@@ -177,7 +173,7 @@ bool C3PhyLoader::ParseMotionChunk(const uint8_t *data, size_t &offset,
   if (!Read(data, offset, fileSize, motion.frameCount))
     return false;
 
-  motion.currentBones.resize(motion.boneCount, glm::mat4(1.0f));
+  motion.currentBones.resize(motion.boneCount, mat4(1.0f));
   motion.currentFrame = 0;
 
   char formatID[4] = {0};
@@ -223,22 +219,12 @@ bool C3PhyLoader::ParseKeyframesKKEY(const uint8_t *data, size_t &offset,
       if (!Read(data, offset, fileSize, mat3x4))
         return false;
 
-      glm::mat4 m(1.0f);
-      m[0][0] = mat3x4.m[0];
-      m[0][1] = mat3x4.m[1];
-      m[0][2] = mat3x4.m[2];
-      m[0][3] = mat3x4.m[3];
-      m[1][0] = mat3x4.m[4];
-      m[1][1] = mat3x4.m[5];
-      m[1][2] = mat3x4.m[6];
-      m[1][3] = mat3x4.m[7];
-      m[2][0] = mat3x4.m[8];
-      m[2][1] = mat3x4.m[9];
-      m[2][2] = mat3x4.m[10];
-      m[2][3] = mat3x4.m[11];
+      mat4 m(vec4(mat3x4.m[0], mat3x4.m[1], mat3x4.m[2], mat3x4.m[3]),
+             vec4(mat3x4.m[4], mat3x4.m[5], mat3x4.m[6], mat3x4.m[7]),
+             vec4(mat3x4.m[8], mat3x4.m[9], mat3x4.m[10], mat3x4.m[11]),
+             vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-      // Transpose to get Column-Major with Translation in Col 3
-      kf.boneMatrices[b] = glm::transpose(m);
+      kf.boneMatrices[b] = m;
     }
   }
   YAMEN_CORE_INFO("C3PhyLoader: Loaded {} KKEY keyframes",
@@ -265,8 +251,7 @@ bool C3PhyLoader::ParseKeyframesXKEY(const uint8_t *data, size_t &offset,
       if (!Read(data, offset, fileSize, tidy))
         return false;
 
-      // FIX: DO NOT TRANSPOSE XKEY
-      // TidyMatrix::ToMat4() already returns a correct GLM matrix
+      // TidyMatrix::ToMat4() already returns a correct mat4
       kf.boneMatrices[b] = tidy.ToMat4();
     }
   }
@@ -294,8 +279,7 @@ bool C3PhyLoader::ParseKeyframesZKEY(const uint8_t *data, size_t &offset,
       if (!Read(data, offset, fileSize, div))
         return false;
 
-      // FIX: DO NOT TRANSPOSE ZKEY
-      // DivInfo::ToMat4() already returns a correct GLM matrix
+      // DivInfo::ToMat4() already returns a correct mat4
       kf.boneMatrices[b] = div.ToMat4();
     }
   }
@@ -324,21 +308,12 @@ bool C3PhyLoader::ParseKeyframesLegacy(const uint8_t *data, size_t &offset,
         return false;
       }
 
-      glm::mat4 m(1.0f);
-      m[0][0] = mat3x4.m[0];
-      m[0][1] = mat3x4.m[1];
-      m[0][2] = mat3x4.m[2];
-      m[0][3] = mat3x4.m[3];
-      m[1][0] = mat3x4.m[4];
-      m[1][1] = mat3x4.m[5];
-      m[1][2] = mat3x4.m[6];
-      m[1][3] = mat3x4.m[7];
-      m[2][0] = mat3x4.m[8];
-      m[2][1] = mat3x4.m[9];
-      m[2][2] = mat3x4.m[10];
-      m[2][3] = mat3x4.m[11];
+      mat4 m(vec4(mat3x4.m[0], mat3x4.m[1], mat3x4.m[2], mat3x4.m[3]),
+             vec4(mat3x4.m[4], mat3x4.m[5], mat3x4.m[6], mat3x4.m[7]),
+             vec4(mat3x4.m[8], mat3x4.m[9], mat3x4.m[10], mat3x4.m[11]),
+             vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-      kf.boneMatrices[b] = glm::transpose(m);
+      kf.boneMatrices[b] = m;
     }
   }
   YAMEN_CORE_INFO("C3PhyLoader: Loaded {} legacy keyframes",
@@ -478,13 +453,13 @@ bool C3PhyLoader::ParsePhysicsChunk(const uint8_t *data, size_t &offset,
       auto &vert = phy.vertices[baseVertIndex + i];
 
       // Position
-      vert.position = glm::vec3(cv.x, cv.y, cv.z);
+      vert.position = vec3(cv.x, cv.y, cv.z);
 
       // Normal
-      vert.normal = glm::vec3(cv.nx, cv.ny, cv.nz);
+      vert.normal = vec3(cv.nx, cv.ny, cv.nz);
 
       // UV
-      vert.texCoord = glm::vec2(cv.u, cv.v);
+      vert.texCoord = vec2(cv.u, cv.v);
 
       // Bones (Unpack from boneIdx)
       // Reference code: v.boneIndices[0] = cv.boneIdx & 0xFF;
@@ -555,16 +530,16 @@ bool C3PhyLoader::ParsePhysicsChunk(const uint8_t *data, size_t &offset,
 // INTERPOLATION
 // ===================================================================
 void C3PhyLoader::InterpolateBones(const C3Motion &motion, float frame,
-                                   std::vector<glm::mat4> &outMatrices) {
+                                   std::vector<mat4> &outMatrices) {
   if (motion.boneCount == 0 || motion.keyframes.empty()) {
-    outMatrices.assign(motion.boneCount, glm::mat4(1.0f));
+    outMatrices.assign(motion.boneCount, mat4(1.0f));
     return;
   }
 
   outMatrices.resize(motion.boneCount);
 
   float maxFrame = motion.keyframes.back().framePosition;
-  frame = glm::clamp(frame, 0.0f, maxFrame);
+  frame = Math::Clamp(frame, 0.0f, maxFrame);
 
   // Find keyframes
   size_t kf1 = 0, kf2 = 0;
@@ -590,44 +565,46 @@ void C3PhyLoader::InterpolateBones(const C3Motion &motion, float frame,
 
   // Interpolate
   for (uint32_t b = 0; b < motion.boneCount; ++b) {
-    const glm::mat4 &m1 = motion.keyframes[kf1].boneMatrices[b];
-    const glm::mat4 &m2 = motion.keyframes[kf2].boneMatrices[b];
+    const mat4 &m1 = motion.keyframes[kf1].boneMatrices[b];
+    const mat4 &m2 = motion.keyframes[kf2].boneMatrices[b];
 
-    glm::vec3 pos1 = glm::vec3(m1[3]);
-    glm::vec3 pos2 = glm::vec3(m2[3]);
+    vec3 pos1 = vec3(m1[3]);
+    vec3 pos2 = vec3(m2[3]);
 
-    auto GetRot = [](const glm::mat4 &m) {
-      glm::vec3 r = glm::vec3(m[0]);
-      glm::vec3 u = glm::vec3(m[1]);
-      glm::vec3 f = glm::vec3(m[2]);
+    auto GetRot = [](const mat4 &m) {
+      vec3 r = vec3(m[0]);
+      vec3 u = vec3(m[1]);
+      vec3 f = vec3(m[2]);
 
-      if (glm::length(r) > 1e-5f)
-        r = glm::normalize(r);
+      if (Math::Length(r) > 1e-5f)
+        r = Math::Normalize(r);
       else
-        r = glm::vec3(1, 0, 0);
-      if (glm::length(u) > 1e-5f)
-        u = glm::normalize(u);
+        r = vec3(1, 0, 0);
+      if (Math::Length(u) > 1e-5f)
+        u = Math::Normalize(u);
       else
-        u = glm::vec3(0, 1, 0);
-      if (glm::length(f) > 1e-5f)
-        f = glm::normalize(f);
+        u = vec3(0, 1, 0);
+      if (Math::Length(f) > 1e-5f)
+        f = Math::Normalize(f);
       else
-        f = glm::vec3(0, 0, 1);
+        f = vec3(0, 0, 1);
 
-      glm::mat3 rotMat(r, u, f);
-      return glm::quat_cast(rotMat);
+      mat4 rotMat(vec4(r, 0.0f), vec4(u, 0.0f), vec4(f, 0.0f),
+                  vec4(0.0f, 0.0f, 0.0f, 1.0f));
+
+      return Math::ToQuat(rotMat);
     };
 
-    glm::quat rot1 = GetRot(m1);
-    glm::quat rot2 = GetRot(m2);
+    quat rot1 = GetRot(m1);
+    quat rot2 = GetRot(m2);
 
-    if (glm::dot(rot1, rot2) < 0.0f)
+    if (Math::Dot(rot1, rot2) < 0.0f)
       rot2 = -rot2;
 
-    glm::quat rot = glm::slerp(rot1, rot2, t);
-    glm::vec3 pos = glm::mix(pos1, pos2, t);
+    quat rot = Math::Slerp(rot1, rot2, t);
+    vec3 pos = Math::Lerp(pos1, pos2, t);
 
-    outMatrices[b] = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+    outMatrices[b] = Math::Translate(pos) * Math::ToMat4(rot);
   }
 }
 

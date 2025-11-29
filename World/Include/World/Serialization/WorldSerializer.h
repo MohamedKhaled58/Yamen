@@ -1,33 +1,38 @@
 #pragma once
 
+#include <Core/Math/Math.h>
 #include <string>
 #include <vector>
-#include <glm/glm.hpp>
+
 
 namespace Yamen::World {
 
-    struct EntityData {
-        uint32_t ID;
-        std::string Name;
-        glm::vec3 Position;
-        glm::vec3 Rotation;
-        glm::vec3 Scale;
-        // Add more components as needed
-    };
+using namespace Yamen::Core;
 
-    class WorldSerializer {
-    public:
-        WorldSerializer() = default;
+struct EntityData {
+  uint32_t ID;
+  std::string Name;
+  vec3 Position;
+  vec3 Rotation;
+  vec3 Scale;
+  // Add more components as needed
+};
 
-        // Save world to file
-        bool SaveWorld(const std::string& filepath, const std::vector<EntityData>& entities);
+class WorldSerializer {
+public:
+  WorldSerializer() = default;
 
-        // Load world from file
-        bool LoadWorld(const std::string& filepath, std::vector<EntityData>& outEntities);
+  // Save world to file
+  bool SaveWorld(const std::string &filepath,
+                 const std::vector<EntityData> &entities);
 
-    private:
-        // Helper methods for serialization formats (e.g., JSON, Binary)
-        // For now, we'll use a simple text format or binary
-    };
+  // Load world from file
+  bool LoadWorld(const std::string &filepath,
+                 std::vector<EntityData> &outEntities);
+
+private:
+  // Helper methods for serialization formats (e.g., JSON, Binary)
+  // For now, we'll use a simple text format or binary
+};
 
 } // namespace Yamen::World

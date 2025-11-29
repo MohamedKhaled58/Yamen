@@ -4,10 +4,14 @@
 #include "ECS/Components/SkeletalAnimationComponent.h"
 #include "ECS/Systems/SkeletalAnimationSystem.h"
 #include "Graphics/Renderer/C3SkeletalRenderer.h"
+#include <Core/Math/Math.h>
 #include <entt/entt.hpp>
 #include <string>
 
+
 namespace Yamen::Client {
+
+using namespace Yamen::Core;
 
 /**
  * @brief Helper class for loading and rendering C3 models
@@ -46,7 +50,7 @@ public:
    */
   static void RenderModel(entt::entity entity, entt::registry &registry,
                           Graphics::C3SkeletalRenderer &renderer,
-                          const glm::mat4 &modelViewProj);
+                          const mat4 &modelViewProj);
 
   /**
    * @brief Unload a C3 model entity

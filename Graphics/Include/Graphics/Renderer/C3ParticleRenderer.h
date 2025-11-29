@@ -1,15 +1,16 @@
 #pragma once
 
+#include "Core/Math/Math.h"
 #include "Graphics/Mesh/Vertex.h"
 #include "Graphics/RHI/Buffer.h"
 #include "Graphics/RHI/GraphicsDevice.h"
 #include "Graphics/Shader/Shader.h"
-#include <glm/glm.hpp>
 #include <memory>
 #include <vector>
 
-
 namespace Yamen::Graphics {
+
+using namespace Yamen::Core;
 
 /**
  * @brief Particle renderer for C3 particle systems
@@ -44,12 +45,12 @@ public:
   /**
    * @brief Set projection matrix (for Ptcl1)
    */
-  void SetProjection(const glm::mat4 &proj);
+  void SetProjection(const mat4 &proj);
 
   /**
    * @brief Set model-view-projection matrix (for Ptcl3)
    */
-  void SetModelViewProj(const glm::mat4 &mvp);
+  void SetModelViewProj(const mat4 &mvp);
 
   /**
    * @brief Begin particle batch
@@ -75,11 +76,11 @@ public:
 
 private:
   struct ConstantsProj {
-    glm::mat4 c3_Proj;
+    mat4 c3_Proj;
   };
 
   struct ConstantsMVP {
-    glm::mat4 c3_ModelViewProj;
+    mat4 c3_ModelViewProj;
   };
 
   GraphicsDevice &m_Device;

@@ -7,11 +7,13 @@
 #include "Graphics/RHI/Sampler.h"
 #include "Graphics/Shader/Shader.h"
 #include "Graphics/Texture/Texture2D.h"
-#include <glm/glm.hpp>
+#include <Core/Math/Math.h>
 #include <memory>
 #include <vector>
 
 namespace Yamen::Graphics {
+
+using namespace Yamen::Core;
 
 /**
  * @brief Renderer for C3 skeletal animated meshes
@@ -45,19 +47,19 @@ public:
    *
    * Converts standard 4x4 matrices to C3 format (3 vec4 per matrix)
    */
-  void SetBoneMatrices(const glm::mat4 *matrices, uint32_t count);
+  void SetBoneMatrices(const mat4 *matrices, uint32_t count);
 
   /**
    * @brief Set UV animation offset
    * @param offset UV offset to add to texture coordinates
    */
-  void SetUVAnimationOffset(const glm::vec2 &offset);
+  void SetUVAnimationOffset(const vec2 &offset);
 
   /**
    * @brief Set model-view-projection matrix
    * @param mvp Combined model-view-projection matrix
    */
-  void SetModelViewProj(const glm::mat4 &mvp);
+  void SetModelViewProj(const mat4 &mvp);
 
   /**
    * @brief Set custom texture (overrides default white texture)
@@ -87,14 +89,13 @@ public:
 
 private:
   struct PerObjectConstants {
-    glm::mat4 c3_ModelViewProj;
-    glm::vec2 c3_UVAnimStep;
-    glm::vec2 _padding;
+    mat4 c3_ModelViewProj;
+    vec2 c3_UVAnimStep;
+    vec2 _padding;
   };
 
   struct BoneMatricesConstants {
-    glm::vec4
-        c3_BoneMatrix[BONE_MATRIX_VEC4_COUNT]; // 70 bones * 3 vec4 = 210 vec4
+    vec4 c3_BoneMatrix[BONE_MATRIX_VEC4_COUNT]; // 70 bones * 3 vec4 = 210 vec4
   };
 
   GraphicsDevice &m_Device;
